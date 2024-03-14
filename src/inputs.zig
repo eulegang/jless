@@ -13,6 +13,7 @@ pub const Input = enum {
     Down,
     Select,
     Quit,
+    Escape,
 };
 
 pub const InputsError = error{
@@ -28,6 +29,8 @@ pub const Inputs = struct {
     user_ring: std.RingBuffer,
     src_ring: std.RingBuffer,
     allocator: std.mem.Allocator,
+
+    init_read: bool,
 
     driver: switch (tag) {
         .linux => Epoll,
@@ -76,6 +79,8 @@ pub const Inputs = struct {
             .user_ring = user_ring,
             .src_ring = src_ring,
 
+            .init_read = true,
+
             .allocator = allocator,
 
             .driver = driver,
@@ -88,18 +93,26 @@ pub const Inputs = struct {
                 std.debug.print("what? {d} ({}, {})\r\n", .{ fd, self.user, self.src });
                 if (fd == self.user) {
                     std.debug.print("reading? {d}\r\n", .{self.user});
-                    var buf: [1]u8 = undefined;
+                    var buf: [4]u8 = undefined;
                     const len = try std.os.read(fd, &buf);
 
                     if (len == 0) continue;
 
                     const ch = buf[0];
 
-                    if (ch == 'q') {
-                        return .{ .input = .Quit };
-                    }
+                    if (len == 1) {
+                        switch (ch) {
+                            'q' => return .{ .input = .Quit },
+                            '\x1b' => return .{ .input = .Escape },
+                            'j' => return .{ .input = .Down },
+                            'k' => return .{ .input = .Up },
+                            '\n' => return .{ .input = .Select },
 
-                    //try std.os.read(fd, self.);
+                            else => {
+                                std.debug.print("unhandled key {d}\n", .{ch});
+                            },
+                        }
+                    }
                 } else if (fd == self.src) {
                     //
 

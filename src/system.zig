@@ -52,21 +52,10 @@ pub const System = struct {
             },
 
             .input => |input| {
-                switch (input) {
-                    .Up => {
-                        _ = try std.os.write(1, "up\r\n");
-                    },
-                    .Down => {
-                        _ = try std.os.write(1, "down\r\n");
-                    },
-                    .Select => {
-                        _ = try std.os.write(1, "select\r\n");
-                    },
+                std.debug.print("event {}\r\n", .{input});
 
-                    .Quit => {
-                        _ = try std.os.write(1, "quit\r\n");
-                        return false;
-                    },
+                if (input == .Quit) {
+                    return false;
                 }
             },
         }
