@@ -36,7 +36,7 @@ pub fn main() !void {
 }
 
 pub fn run() !void {
-    var system = try System.init(args.file, allocator);
+    var system = try System.init(args.file);
     defer system.close();
 
     try system.setup();

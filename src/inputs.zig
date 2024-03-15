@@ -1,5 +1,6 @@
 const std = @import("std");
 const tag = @import("builtin").os.tag;
+const Mirror = @import("mirror").Mirror;
 
 const fd_t = std.os.fd_t;
 
@@ -26,9 +27,7 @@ pub const Inputs = struct {
     user: fd_t,
     src: fd_t,
 
-    user_ring: std.RingBuffer,
-    src_ring: std.RingBuffer,
-    allocator: std.mem.Allocator,
+    mirror: Mirror(0x2000),
 
     init_read: bool,
 
@@ -38,7 +37,7 @@ pub const Inputs = struct {
         else => @compileError("Only suports linux and mac"),
     },
 
-    pub fn init(file: ?[]const u8, allocator: std.mem.Allocator) !Self {
+    pub fn init(file: ?[]const u8) !Self {
         var user: fd_t = 0;
         var src: fd_t = 0;
 
@@ -63,8 +62,7 @@ pub const Inputs = struct {
             }, 0o755);
         }
 
-        const user_ring = try std.RingBuffer.init(allocator, 128);
-        const src_ring = try std.RingBuffer.init(allocator, 4096);
+        const mirror = try Mirror(0x2000).new();
 
         const driver = switch (tag) {
             .linux => try Epoll.init(user, src),
@@ -76,12 +74,9 @@ pub const Inputs = struct {
             .user = user,
             .src = src,
 
-            .user_ring = user_ring,
-            .src_ring = src_ring,
+            .mirror = mirror,
 
             .init_read = true,
-
-            .allocator = allocator,
 
             .driver = driver,
         };

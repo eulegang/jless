@@ -27,9 +27,15 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const mirror = b.dependency("mirror", .{
+        .target = target,
+        .optimize = optimize,
+    });
+
+    //exe.linkLibC();
     exe.root_module.addImport("zig-cli", cli.module("zig-cli"));
+    exe.root_module.addImport("mirror", mirror.module("mirror"));
     exe.addIncludePath(.{ .path = "/usr/include/" });
-    exe.linkLibC();
     exe.linkSystemLibrary("jq");
 
     // This declares intent for the executable to be installed into the

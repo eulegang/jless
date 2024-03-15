@@ -7,8 +7,8 @@ pub const System = struct {
     inputs: Inputs,
     term: std.os.termios,
 
-    pub fn init(file: ?[]const u8, allocator: std.mem.Allocator) !System {
-        const inputs = try Inputs.init(file, allocator);
+    pub fn init(file: ?[]const u8) !System {
+        const inputs = try Inputs.init(file);
 
         return System{
             .inputs = inputs,
