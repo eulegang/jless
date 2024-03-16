@@ -3,14 +3,32 @@ const c = @cImport({
     @cInclude("jq.h");
 });
 
+var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+const allocator = gpa.allocator();
+
 pub const JQ = struct {
+    const err = error{ failed_init, failed_compile };
+
     st: *c.jq_state,
+    prog: [*c]const u8,
 
-    fn new() JQ {
-        const st = c.jq_init();
-        c.jq_set_error_cb(st, &err_report, null);
+    pub fn init(program: []const u8) !JQ {
+        if (c.jq_init()) |st| {
+            c.jq_set_error_cb(st, &err_report, null);
+            const prog = try allocator.dupeZ(u8, program);
 
-        return JQ{ .st = st };
+            if (c.jq_compile(st, prog) == 0) {
+                return err.failed_compile;
+            }
+            return JQ{ .st = st, .prog = prog };
+        } else {
+            return err.failed_init;
+        }
+    }
+
+    pub fn deinit(self: JQ) void {
+        c.jq_teardown(&self.st);
+        allocator.free(self.prog);
     }
 };
 

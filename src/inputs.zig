@@ -84,6 +84,30 @@ pub const Inputs = struct {
 
     pub fn event(self: *Self) !Event {
         while (true) {
+            // TODO: something seems wrong here
+            if (self.init_read) {
+                _ = self.mirror.read_fd(self.src) catch |err| switch (err) {
+                    error.WouldBlock => {
+                        self.init_read = false;
+                    },
+
+                    else => {
+                        return err;
+                    },
+                };
+            }
+
+            if (self.mirror.len() != 0) {
+                const avail = self.mirror.buffer();
+                if (std.mem.indexOf(u8, avail, "\n")) |index| {
+                    const line = avail[0..index];
+
+                    _ = self.mirror.drop(index + 1);
+
+                    return Event{ .line = line };
+                }
+            }
+
             if (try self.driver.next()) |fd| {
                 std.debug.print("what? {d} ({}, {})\r\n", .{ fd, self.user, self.src });
                 if (fd == self.user) {
@@ -97,20 +121,33 @@ pub const Inputs = struct {
 
                     if (len == 1) {
                         switch (ch) {
-                            'q' => return .{ .input = .Quit },
                             '\x1b' => return .{ .input = .Escape },
-                            'j' => return .{ .input = .Down },
-                            'k' => return .{ .input = .Up },
                             '\n' => return .{ .input = .Select },
 
+                            'q' => return .{ .input = .Quit },
+                            'j' => return .{ .input = .Down },
+                            'k' => return .{ .input = .Up },
+
                             else => {
-                                std.debug.print("unhandled key {d}\n", .{ch});
+                                std.debug.print("unhandled key {d}\r\n", .{ch});
                             },
                         }
                     }
                 } else if (fd == self.src) {
-                    //
+                    _ = self.mirror.read_fd(self.src) catch |err| switch (err) {
+                        error.WouldBlock => continue,
+                        else => return err,
+                    };
 
+                    const avail = self.mirror.buffer();
+
+                    if (std.mem.indexOf(u8, avail, "\n")) |index| {
+                        const line = avail[0..index];
+
+                        _ = self.mirror.drop(index + 1);
+
+                        return Event{ .line = line };
+                    }
                 } else {
                     unreachable;
                 }

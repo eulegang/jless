@@ -1,5 +1,6 @@
 const std = @import("std");
 const tag = @import("builtin").os.tag;
+const JQ = @import("jq.zig").JQ;
 
 const Inputs = @import("inputs.zig").Inputs;
 
@@ -7,12 +8,15 @@ pub const System = struct {
     inputs: Inputs,
     term: std.os.termios,
 
+    filter: ?JQ,
+
     pub fn init(file: ?[]const u8) !System {
         const inputs = try Inputs.init(file);
 
         return System{
             .inputs = inputs,
             .term = undefined,
+            .filter = null,
         };
     }
 
@@ -46,9 +50,7 @@ pub const System = struct {
         const event = try self.inputs.event();
         switch (event) {
             .line => |line| {
-                _ = line;
-
-                _ = try std.os.write(1, "line\r\n");
+                std.debug.print("line \"{s}\"\r\n", .{line});
             },
 
             .input => |input| {
