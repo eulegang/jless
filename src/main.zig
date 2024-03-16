@@ -11,6 +11,7 @@ var args = struct {
     expr: []const u8 = "",
     file: ?[]const u8 = null,
     filter: ?[]const u8 = null,
+    projection: ?[]const u8 = null,
 }{};
 
 var file_opt = cli.Option{
@@ -24,6 +25,13 @@ var filter_opt = cli.Option{
     .short_alias = 'F',
     .long_name = "filter",
     .help = "jq filter",
+    .value_ref = cli.mkRef(&args.filter),
+};
+
+var projection_opt = cli.Option{
+    .short_alias = 'p',
+    .long_name = "project",
+    .help = "jq projection",
     .value_ref = cli.mkRef(&args.filter),
 };
 
@@ -43,9 +51,12 @@ pub fn run() !void {
     var system = try System.init(args.file);
     defer system.close();
 
-    var filter: ?JQ = null;
     if (args.filter) |f| {
-        filter = try JQ.init(f);
+        system.filter = try JQ.init(f);
+    }
+
+    if (args.projection) |p| {
+        system.projection = try JQ.init(p);
     }
 
     try system.setup();

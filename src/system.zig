@@ -9,6 +9,7 @@ pub const System = struct {
     term: Term,
 
     filter: ?JQ,
+    projection: ?JQ,
 
     pub fn init(file: ?[]const u8) !System {
         const inputs = try Inputs.init(file);
