@@ -13,6 +13,16 @@ const State = struct {
     base: usize,
 };
 
+const ColorTheme = struct {
+    selected: ColorPair,
+    default: ColorPair,
+};
+
+const ColorPair = struct {
+    fg: u32,
+    bg: u32,
+};
+
 pub const System = struct {
     inputs: Inputs,
     term: Term,
@@ -20,6 +30,7 @@ pub const System = struct {
     store: *Store,
     render: Render,
     state: State,
+    theme: ColorTheme,
 
     filter: ?JQ,
     projection: ?JQ,
@@ -38,6 +49,16 @@ pub const System = struct {
             .store = store,
             .render = render,
             .state = state,
+            .theme = .{
+                .default = .{
+                    .bg = 0x24_28_3b,
+                    .fg = 0x73_7A_A2,
+                },
+                .selected = .{
+                    .fg = 0x33_aa_33,
+                    .bg = 0x34_38_4A,
+                },
+            },
             .filter = null,
             .projection = null,
         };
@@ -61,11 +82,11 @@ pub const System = struct {
         for (0.., view) |i, item| {
             try self.render.move_cursor(@intCast(i), 0);
             if (i == self.state.line) {
-                try self.render.true_fg(0x33_aa_33);
-                try self.render.true_bg(0x34_38_4A);
+                try self.render.true_bg(self.theme.selected.bg);
+                try self.render.true_fg(self.theme.selected.fg);
             } else {
-                try self.render.true_bg(0x24_28_3b);
-                try self.render.true_fg(0x73_7A_A2);
+                try self.render.true_bg(self.theme.default.bg);
+                try self.render.true_fg(self.theme.default.fg);
             }
 
             try self.render.push_line(item);
@@ -107,11 +128,11 @@ pub const System = struct {
         for (0.., view) |i, item| {
             try self.render.move_cursor(@intCast(i), 0);
             if (i == self.state.line) {
-                try self.render.true_fg(0x33_aa_33);
-                try self.render.true_bg(0x34_38_4A);
+                try self.render.true_fg(self.theme.selected.fg);
+                try self.render.true_bg(self.theme.selected.bg);
             } else {
-                try self.render.true_bg(0x24_28_3b);
-                try self.render.true_fg(0x73_7A_A2);
+                try self.render.true_fg(self.theme.default.fg);
+                try self.render.true_bg(self.theme.default.bg);
             }
 
             try self.render.push_line(item);
@@ -141,13 +162,13 @@ pub const System = struct {
             const line = self.store.list.items[self.state.line];
 
             try self.render.move_cursor(@intCast(prev_line), 0);
-            try self.render.true_bg(0x24_28_3b);
-            try self.render.true_fg(0x73_7A_A2);
+            try self.render.true_bg(self.theme.default.bg);
+            try self.render.true_fg(self.theme.default.fg);
             try self.render.push_line(prev);
 
             try self.render.move_cursor(@intCast(self.state.line), 0);
-            try self.render.true_fg(0x33_aa_33);
-            try self.render.true_bg(0x34_38_4A);
+            try self.render.true_fg(self.theme.default.fg);
+            try self.render.true_bg(self.theme.default.bg);
             try self.render.push_line(line);
             try self.render.flush();
         }
@@ -166,13 +187,13 @@ pub const System = struct {
             const prev = self.store.list.items[prev_line];
 
             try self.render.move_cursor(@intCast(prev_line), 0);
-            try self.render.true_bg(0x24_28_3b);
-            try self.render.true_fg(0x73_7A_A2);
+            try self.render.true_bg(self.theme.default.bg);
+            try self.render.true_fg(self.theme.default.fg);
             try self.render.push_line(prev);
 
             try self.render.move_cursor(@intCast(self.state.line), 0);
-            try self.render.true_fg(0x33_aa_33);
-            try self.render.true_bg(0x34_38_4A);
+            try self.render.true_fg(self.theme.selected.fg);
+            try self.render.true_bg(self.theme.selected.bg);
             try self.render.push_line(line);
             try self.render.flush();
         }
