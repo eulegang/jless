@@ -6,6 +6,8 @@ const Term = @import("term.zig").Term;
 const Store = @import("store.zig").Store;
 const Render = @import("render.zig").Render;
 
+const log = std.log.scoped(.system);
+
 const State = struct {
     line: usize,
     base: usize,
@@ -39,6 +41,13 @@ pub const System = struct {
             .filter = null,
             .projection = null,
         };
+    }
+
+    pub fn close(self: *@This()) void {
+        self.inputs.close();
+        self.store.deinit();
+        self.render.deinit();
+        self.term.deinit();
     }
 
     pub fn setup(self: *@This()) !void {
@@ -78,8 +87,12 @@ pub const System = struct {
             },
 
             .input => |input| {
-                if (input == .Quit) {
-                    return false;
+                switch (input) {
+                    .Quit => return false,
+                    .Up => try self.move_up(),
+                    .Down => try self.move_down(),
+
+                    else => log.warn("unhandled input {}", .{input}),
                 }
             },
         }
@@ -87,10 +100,77 @@ pub const System = struct {
         return true;
     }
 
-    pub fn close(self: *@This()) void {
-        self.inputs.close();
-        self.store.deinit();
-        self.render.deinit();
-        self.term.deinit();
+    pub fn paint_full(self: *@This()) !void {
+        const view = self.store.view(self.state.line, self.render.window.height);
+        for (0.., view) |i, item| {
+            try self.render.move_cursor(@intCast(i), 0);
+            if (i == self.state.line) {
+                try self.render.true_fg(0x33_aa_33);
+                try self.render.true_bg(0x34_38_4A);
+            } else {
+                try self.render.true_bg(0x24_28_3b);
+                try self.render.true_fg(0x73_7A_A2);
+            }
+
+            try self.render.push_line(item);
+            try self.render.flush();
+        }
+
+        for (view.len..self.render.window.height) |i| {
+            try self.render.move_cursor(@intCast(i), 0);
+            try self.render.push_line("");
+            try self.render.flush();
+        }
+    }
+
+    fn move_up(self: *@This()) !void {
+        if (self.state.line == 0) {
+            if (self.state.base == 0) {
+                return;
+            } else {
+                self.state.base -= 1;
+                try self.paint_full();
+            }
+        } else {
+            const prev_line = self.state.line;
+            self.state.line -= 1;
+
+            const prev = self.store.list.items[prev_line];
+            const line = self.store.list.items[self.state.line];
+
+            try self.render.move_cursor(@intCast(prev_line), 0);
+            try self.render.true_bg(0x24_28_3b);
+            try self.render.true_fg(0x73_7A_A2);
+            try self.render.push_line(prev);
+
+            try self.render.move_cursor(@intCast(self.state.line), 0);
+            try self.render.true_fg(0x33_aa_33);
+            try self.render.true_bg(0x34_38_4A);
+            try self.render.push_line(line);
+            try self.render.flush();
+        }
+    }
+
+    fn move_down(self: *@This()) !void {
+        const prev_line = self.state.line;
+        self.state.line += 1;
+
+        if (self.store.at(self.state.line)) |line| {
+            const prev = self.store.list.items[prev_line];
+
+            try self.render.move_cursor(@intCast(prev_line), 0);
+            try self.render.true_bg(0x24_28_3b);
+            try self.render.true_fg(0x73_7A_A2);
+            try self.render.push_line(prev);
+
+            try self.render.move_cursor(@intCast(self.state.line), 0);
+            try self.render.true_fg(0x33_aa_33);
+            try self.render.true_bg(0x34_38_4A);
+            try self.render.push_line(line);
+            try self.render.flush();
+        }
+        if (self.state.line >= self.render.window.height) {
+            log.warn("need to implement shift", .{});
+        }
     }
 };

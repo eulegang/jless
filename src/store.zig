@@ -33,6 +33,14 @@ pub const Store = struct {
         return self.list.items[base..end];
     }
 
+    pub fn at(self: *Store, index: usize) ?[]const u8 {
+        if (index >= self.list.items.len) {
+            return null;
+        }
+
+        return self.list.items[index];
+    }
+
     pub fn deinit(self: *Store) void {
         for (self.list.items) |item| {
             self.allocator.free(item);
