@@ -48,17 +48,24 @@ pub const System = struct {
             try self.store.push(line);
         }
 
-        for (0.., self.store.view(0, self.render.window.height)) |i, item| {
+        const view = self.store.view(0, self.render.window.height);
+        for (0.., view) |i, item| {
             try self.render.move_cursor(@intCast(i), 0);
             if (i == self.state.line) {
-                try self.render.true_bg(0x00_33_aA);
-                try self.render.fg(.Black);
+                try self.render.true_fg(0x33_aa_33);
+                try self.render.true_bg(0x34_38_4A);
             } else {
-                try self.render.true_bg(0x24283b);
+                try self.render.true_bg(0x24_28_3b);
                 try self.render.true_fg(0x73_7A_A2);
             }
 
             try self.render.push_line(item);
+            try self.render.flush();
+        }
+
+        for (view.len..self.render.window.height) |i| {
+            try self.render.move_cursor(@intCast(i), 0);
+            try self.render.push_line("");
             try self.render.flush();
         }
     }
