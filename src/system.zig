@@ -175,7 +175,7 @@ pub const System = struct {
     }
 
     fn move_down(self: *@This()) !void {
-        const prev_line = self.state.line;
+        var prev_line = self.state.line;
 
         if (self.state.line + self.state.base >= self.store.len() -| 1) {
             return;
@@ -183,22 +183,45 @@ pub const System = struct {
 
         self.state.line += 1;
 
-        if (self.store.at(self.state.line)) |line| {
-            const prev = self.store.list.items[prev_line];
+        const prev = self.store.list.items[self.state.base + prev_line];
+        const line = self.store.list.items[self.state.line + self.state.base];
 
-            try self.render.move_cursor(@intCast(prev_line), 0);
+        if (self.state.line >= self.render.window.height) {
             try self.render.true_bg(self.theme.default.bg);
             try self.render.true_fg(self.theme.default.fg);
-            try self.render.push_line(prev);
-
-            try self.render.move_cursor(@intCast(self.state.line), 0);
-            try self.render.true_fg(self.theme.selected.fg);
-            try self.render.true_bg(self.theme.selected.bg);
-            try self.render.push_line(line);
+            try self.render.pushf("\n", .{});
             try self.render.flush();
+
+            log.debug("height {}, line: {}, prev: {}, base: {}", .{
+                self.render.window.height,
+                self.state.line,
+                prev_line,
+                self.state.base,
+            });
+
+            const diff = self.state.line - self.render.window.height;
+            self.state.line -= diff;
+            prev_line -= diff;
+            self.state.base += diff;
+
+            log.debug("next height {}, line: {}, prev: {}, base: {}", .{
+                self.render.window.height,
+                self.state.line,
+                prev_line,
+                self.state.base,
+            });
         }
-        if (self.state.line >= self.render.window.height) {
-            log.warn("need to implement shift", .{});
-        }
+
+        try self.render.move_cursor(@intCast(prev_line), 0);
+        try self.render.true_bg(self.theme.default.bg);
+        try self.render.true_fg(self.theme.default.fg);
+        try self.render.push_line(prev);
+
+        try self.render.move_cursor(@intCast(self.state.line), 0);
+        try self.render.true_fg(self.theme.selected.fg);
+        try self.render.true_bg(self.theme.selected.bg);
+        try self.render.push_line(line);
+
+        try self.render.flush();
     }
 };
