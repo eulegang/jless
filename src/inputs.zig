@@ -55,6 +55,27 @@ pub const Inputs = struct {
         };
     }
 
+    pub fn load_gen(self: *Self) !?[]const u8 {
+        while (true) {
+            if (self.mirror.len() != 0) {
+                const avail = self.mirror.buffer();
+                if (std.mem.indexOf(u8, avail, "\n")) |index| {
+                    const line = avail[0..index];
+
+                    _ = self.mirror.drop(index + 1);
+
+                    return line;
+                }
+            }
+
+            const read = try self.mirror.read_fd(self.src);
+
+            if (read == 0) {
+                return null;
+            }
+        }
+    }
+
     pub fn event(self: *Self) !Event {
         while (true) {
             if (self.init_read) {
@@ -102,7 +123,7 @@ pub const Inputs = struct {
                     'k' => return .{ .input = .Up },
 
                     else => {
-                        std.debug.print("unhandled key {d}\r\n", .{ch});
+                        std.debug.print("unhandled key {x}\r\n", .{ch});
                     },
                 }
             }
