@@ -41,6 +41,10 @@ pub const Store = struct {
         return self.list.items[index];
     }
 
+    pub fn len(self: *const Store) usize {
+        return self.list.items.len;
+    }
+
     pub fn deinit(self: *Store) void {
         for (self.list.items) |item| {
             self.allocator.free(item);

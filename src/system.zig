@@ -87,6 +87,7 @@ pub const System = struct {
             },
 
             .input => |input| {
+                log.debug("pre: {}", .{self.state});
                 switch (input) {
                     .Quit => return false,
                     .Up => try self.move_up(),
@@ -94,6 +95,7 @@ pub const System = struct {
 
                     else => log.warn("unhandled input {}", .{input}),
                 }
+                log.debug("post: {}", .{self.state});
             },
         }
 
@@ -153,6 +155,11 @@ pub const System = struct {
 
     fn move_down(self: *@This()) !void {
         const prev_line = self.state.line;
+
+        if (self.state.line + self.state.base >= self.store.len() -| 1) {
+            return;
+        }
+
         self.state.line += 1;
 
         if (self.store.at(self.state.line)) |line| {
