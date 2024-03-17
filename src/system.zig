@@ -51,15 +51,14 @@ pub const System = struct {
         for (0.., self.store.view(0, self.render.window.height)) |i, item| {
             try self.render.move_cursor(@intCast(i), 0);
             if (i == self.state.line) {
-                try self.render.bg(.White);
+                try self.render.true_bg(0x00_33_aA);
                 try self.render.fg(.Black);
             } else {
-                try self.render.bg(.Black);
-                try self.render.fg(.Green);
+                try self.render.true_bg(0x24283b);
+                try self.render.true_fg(0x73_7A_A2);
             }
 
             try self.render.push_line(item);
-            //try self.render.pushf("i: {}, line: {}", .{ i, self.state.line });
             try self.render.flush();
         }
     }

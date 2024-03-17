@@ -122,8 +122,22 @@ pub const Render = struct {
         try self.pushf("\x1b[3{c}m", .{color.byte()});
     }
 
+    pub fn true_fg(self: *Render, color: u32) Err!void {
+        const red = (color >> 16) & 0xFF;
+        const green = (color >> 8) & 0xFF;
+        const blue = color & 0xFF;
+        try self.pushf("\x1b[38;2;{};{};{}m", .{ red, green, blue });
+    }
+
     pub fn bg(self: *Render, color: Color) Err!void {
         try self.pushf("\x1b[4{c}m", .{color.byte()});
+    }
+
+    pub fn true_bg(self: *Render, color: u32) Err!void {
+        const red = (color >> 16) & 0xFF;
+        const green = (color >> 8) & 0xFF;
+        const blue = color & 0xFF;
+        try self.pushf("\x1b[48;2;{};{};{}m", .{ red, green, blue });
     }
 
     pub fn pushf(self: *Render, comptime fmt: []const u8, args: anytype) Err!void {
@@ -148,6 +162,15 @@ test "set colors" {
     try render.fg(.Green);
 
     try std.testing.expectEqualSlices(u8, "\x1b[40m\x1b[32m", render.buffer[0..render.cur]);
+}
+
+test "set true colors" {
+    var render = Render.test_instance();
+
+    try render.true_bg(0x00_aa_ff);
+    try render.true_fg(0xff_bb_11);
+
+    try std.testing.expectEqualSlices(u8, "\x1b[48;2;0;170;255m\x1b[38;2;255;187;17m", render.buffer[0..render.cur]);
 }
 
 test "moving cursor" {
