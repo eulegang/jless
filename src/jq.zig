@@ -37,5 +37,5 @@ fn err_report(_: ?*anyopaque, value: c.jv) callconv(.C) void {
 
     _ = c.jv_dump_string_trunc(value, &buf, 256);
 
-    std.debug.print("\x1b[31m{s}\x1b[0m\n", .{buf});
+    std.log.err("\x1b[31m{s}\x1b[0m\n", .{buf});
 }

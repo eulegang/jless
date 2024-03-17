@@ -2,6 +2,7 @@ const std = @import("std");
 const tag = @import("builtin").os.tag;
 const Mirror = @import("mirror").Mirror;
 
+const log = std.log.scoped(.input);
 const fd_t = std.os.fd_t;
 
 pub const Event = union(enum) {
@@ -123,7 +124,7 @@ pub const Inputs = struct {
                     'k' => return .{ .input = .Up },
 
                     else => {
-                        std.debug.print("unhandled key {x}\r\n", .{ch});
+                        log.debug("unhandled key {x}", .{ch});
                     },
                 }
             }

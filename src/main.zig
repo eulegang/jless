@@ -4,6 +4,14 @@ const JQ = @import("jq.zig").JQ;
 
 const System = @import("system.zig").System;
 
+pub const std_options = .{
+    // Set the log level to info
+    .log_level = std.log.Level.debug,
+
+    // Define logFn to override the std implementation
+    .logFn = @import("log.zig").jsonLog,
+};
+
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 const allocator = gpa.allocator();
 
