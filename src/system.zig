@@ -67,13 +67,10 @@ pub const System = struct {
         const event = try self.inputs.event();
         switch (event) {
             .line => |line| {
-                std.log.debug("line \"{s}\"", .{line});
                 try self.store.push(line);
             },
 
             .input => |input| {
-                std.log.debug("event {}", .{input});
-
                 if (input == .Quit) {
                     return false;
                 }

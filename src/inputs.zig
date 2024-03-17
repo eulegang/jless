@@ -65,6 +65,8 @@ pub const Inputs = struct {
 
                     _ = self.mirror.drop(index + 1);
 
+                    std.log.debug("line \"{s}\"", .{line});
+
                     return line;
                 }
             }
@@ -103,6 +105,7 @@ pub const Inputs = struct {
 
                     _ = self.mirror.drop(index + 1);
 
+                    std.log.debug("line \"{s}\"", .{line});
                     return Event{ .line = line };
                 }
             }
@@ -114,19 +117,26 @@ pub const Inputs = struct {
 
             const ch = buf[0];
 
+            var input: ?Input = null;
+
             if (len == 1) {
                 switch (ch) {
-                    '\x1b' => return .{ .input = .Escape },
-                    '\n' => return .{ .input = .Select },
+                    '\x1b' => input = .Escape,
+                    '\n' => input = .Select,
 
-                    'q' => return .{ .input = .Quit },
-                    'j' => return .{ .input = .Down },
-                    'k' => return .{ .input = .Up },
+                    'q' => input = .Quit,
+                    'j' => input = .Down,
+                    'k' => input = .Up,
 
                     else => {
                         log.debug("unhandled key {x}", .{ch});
                     },
                 }
+            }
+
+            if (input) |i| {
+                log.debug("event {}", .{i});
+                return .{ .input = i };
             }
         }
     }
