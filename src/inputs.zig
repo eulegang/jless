@@ -13,6 +13,16 @@ pub const Event = union(enum) {
 pub const Input = enum {
     Up,
     Down,
+
+    Begin,
+    End,
+
+    HalfPageUp,
+    HalfPageDown,
+
+    FullPageUp,
+    FullPageDown,
+
     Select,
     Quit,
     Escape,
@@ -127,6 +137,15 @@ pub const Inputs = struct {
                     'q' => input = .Quit,
                     'j' => input = .Down,
                     'k' => input = .Up,
+
+                    'd' => input = .HalfPageDown,
+                    'u' => input = .HalfPageUp,
+
+                    'f' => input = .FullPageDown,
+                    'b' => input = .FullPageUp,
+
+                    'g' => input = .Begin,
+                    'G' => input = .End,
 
                     else => {
                         log.debug("unhandled key {x}", .{ch});

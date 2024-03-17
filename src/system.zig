@@ -109,10 +109,22 @@ pub const System = struct {
 
             .input => |input| {
                 log.debug("pre: {}", .{self.state});
+                const page: isize = self.render.window.height;
                 switch (input) {
                     .Quit => return false,
-                    .Up => try self.move_up(),
-                    .Down => try self.move_down(),
+                    .Up => try self.move_delta(-1),
+                    .Down => try self.move_delta(1),
+
+                    .HalfPageDown => try self.move_delta(@divTrunc(page, 2)),
+                    .HalfPageUp => try self.move_delta(-@divTrunc(page, 2)),
+
+                    .FullPageDown => try self.move_delta(page),
+                    .FullPageUp => try self.move_delta(-page),
+
+                    .Begin => {
+                        self.state = .{ .line = 0, .base = 0 };
+                        try self.paint_full();
+                    },
 
                     else => log.warn("unhandled input {}", .{input}),
                 }
@@ -124,7 +136,7 @@ pub const System = struct {
     }
 
     pub fn paint_full(self: *@This()) !void {
-        const view = self.store.view(self.state.line, self.render.window.height);
+        const view = self.store.view(self.state.base, self.render.window.height);
         for (0.., view) |i, item| {
             try self.render.move_cursor(@intCast(i), 0);
             if (i == self.state.line) {
@@ -192,24 +204,10 @@ pub const System = struct {
             try self.render.pushf("\n", .{});
             try self.render.flush();
 
-            log.debug("height {}, line: {}, prev: {}, base: {}", .{
-                self.render.window.height,
-                self.state.line,
-                prev_line,
-                self.state.base,
-            });
-
             const diff = self.state.line - self.render.window.height;
             self.state.line -= diff;
             prev_line -= diff;
             self.state.base += diff;
-
-            log.debug("next height {}, line: {}, prev: {}, base: {}", .{
-                self.render.window.height,
-                self.state.line,
-                prev_line,
-                self.state.base,
-            });
         }
 
         try self.render.move_cursor(@intCast(prev_line), 0);
@@ -223,5 +221,28 @@ pub const System = struct {
         try self.render.push_line(line);
 
         try self.render.flush();
+    }
+
+    fn move_delta(self: *@This(), delta: isize) !void {
+        const d: usize = @intCast(@abs(delta));
+        if (delta < 0) {
+            if (d > self.state.line) {
+                self.state.base -|= d -| self.state.line;
+                self.state.line = 0;
+            } else {
+                self.state.line -= d;
+            }
+        } else {
+            self.state.line += d;
+
+            if (self.state.line >= self.render.window.height - 1) {
+                const diff = 1 + self.state.line -| self.render.window.height;
+
+                self.state.base += diff;
+                self.state.line -= diff;
+            }
+        }
+
+        try self.paint_full();
     }
 };
