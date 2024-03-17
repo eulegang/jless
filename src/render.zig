@@ -10,6 +10,9 @@ const DISABLE_ALT = "\x1b[?1049h";
 const CURSOR_VIS = "\x1b[?25h";
 const CURSOR_INVIS = "\x1b[?25l";
 
+const AUTOWRAP = "\x1b[?7h";
+const NOAUTOWRAP = "\x1b[?7l";
+
 const SPACE: [512]u8 = .{' '} ** 512;
 
 const Err = std.mem.Allocator.Error || std.os.WriteError || error{WindowFetch};
@@ -66,10 +69,21 @@ pub const Render = struct {
         try self.push(SAVE_SCREEN);
         try self.push(ENABLE_ALT);
         try self.push(CURSOR_INVIS);
+        try self.push(NOAUTOWRAP);
         try self.clear_screen();
         try self.flush();
 
         return self;
+    }
+
+    pub fn deinit(self: *Render) void {
+        self.cur = 0;
+
+        self.push(DISABLE_ALT) catch return;
+        self.push(RESTORE_SCREEN) catch return;
+        self.push(CURSOR_VIS) catch return;
+        self.push(AUTOWRAP) catch return;
+        self.flush() catch return;
     }
 
     fn test_instance() Render {
@@ -115,7 +129,7 @@ pub const Render = struct {
     }
 
     pub fn move_cursor(self: *Render, line: u16, col: u16) Err!void {
-        try self.pushf("\x1b[{};{}H", .{ line + 1, col + 1 });
+        try self.pushf("\x1b[{};{}H", .{ line + 1, col });
     }
 
     pub fn fg(self: *Render, color: Color) Err!void {
@@ -144,15 +158,6 @@ pub const Render = struct {
         const sub = std.fmt.bufPrint(self.buffer[self.cur..], fmt, args) catch return Err.OutOfMemory;
         self.cur += sub.len;
     }
-
-    pub fn deinit(self: *Render) void {
-        self.cur = 0;
-
-        self.push(DISABLE_ALT) catch return;
-        self.push(RESTORE_SCREEN) catch return;
-        self.push(CURSOR_VIS) catch return;
-        self.flush() catch return;
-    }
 };
 
 test "set colors" {
@@ -179,5 +184,5 @@ test "moving cursor" {
     try render.move_cursor(0, 0);
     try render.move_cursor(10, 10);
 
-    try std.testing.expectEqualSlices(u8, "\x1b[1;1H\x1b[11;11H", render.buffer[0..render.cur]);
+    try std.testing.expectEqualSlices(u8, "\x1b[1;0H\x1b[11;10H", render.buffer[0..render.cur]);
 }
