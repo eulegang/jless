@@ -108,7 +108,7 @@ pub const System = struct {
             },
 
             .input => |input| {
-                log.debug("pre: {}", .{self.state});
+                log.debug("pretick", .{ .state = self.state, .window = self.render.window });
                 const page: isize = self.render.window.height;
                 switch (input) {
                     .Quit => return false,
@@ -128,7 +128,7 @@ pub const System = struct {
 
                     else => log.warn("unhandled input {}", .{input}),
                 }
-                log.debug("post: {}", .{self.state});
+                log.debug("posttick", .{ .state = self.state, .window = self.render.window });
             },
         }
 
