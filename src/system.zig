@@ -126,8 +126,17 @@ pub const System = struct {
                         try self.paint_full();
                     },
 
+                    .End => {
+                        var delta: isize = @intCast(self.store.len() -| 1);
+                        delta -|= @intCast(self.state.line);
+                        delta -|= @intCast(self.state.base);
+                        try self.move_delta(delta);
+                        try self.paint_full();
+                    },
+
                     else => log.warn("unhandled input {}", .{input}),
                 }
+
                 log.debug("posttick", .{ .state = self.state, .window = self.render.window });
             },
         }
