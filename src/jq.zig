@@ -3,39 +3,93 @@ const c = @cImport({
     @cInclude("jq.h");
 });
 
-var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-const allocator = gpa.allocator();
+const Err = std.mem.Allocator.Error || error{
+    failed_init,
+    failed_compile,
+    failed_parser_init,
+};
 
 pub const JQ = struct {
-    const err = error{ failed_init, failed_compile };
-
     st: *c.jq_state,
-    prog: [*c]const u8,
+    parser: *c.jv_parser,
+    prog: [:0]const u8,
+    allocator: std.mem.Allocator,
+    buffer: []u8,
 
-    pub fn init(program: []const u8) !JQ {
-        if (c.jq_init()) |st| {
-            c.jq_set_error_cb(st, &err_report, null);
-            const prog = try allocator.dupeZ(u8, program);
+    pub fn init(program: []const u8, allocator: std.mem.Allocator) Err!*JQ {
+        var jq = try allocator.create(JQ);
+        errdefer allocator.destroy(jq);
 
-            if (c.jq_compile(st, prog) == 0) {
-                return err.failed_compile;
-            }
-            return JQ{ .st = st, .prog = prog };
-        } else {
-            return err.failed_init;
+        jq.st = c.jq_init() orelse return Err.failed_compile;
+
+        const prog = try allocator.dupeZ(u8, program);
+        errdefer allocator.free(prog);
+
+        jq.prog = prog;
+
+        if (c.jq_compile(jq.st, prog) == 0) {
+            return Err.failed_compile;
         }
+
+        jq.parser = c.jv_parser_new(0) orelse return Err.failed_parser_init;
+
+        jq.buffer = try allocator.alloc(u8, 0x2000);
+        jq.allocator = allocator;
+
+        return jq;
     }
 
-    pub fn deinit(self: JQ) void {
-        c.jq_teardown(&self.st);
-        allocator.free(self.prog);
+    pub fn deinit(self: *JQ) void {
+        c.jq_teardown(@constCast(@ptrCast(&self.st)));
+        c.jv_parser_free(self.parser);
+        self.allocator.free(self.buffer);
+        self.allocator.free(self.prog);
+        self.allocator.destroy(self);
+    }
+
+    pub fn project(self: *const JQ, line: []const u8) Err![]const u8 {
+        c.jv_parser_set_buf(self.parser, line.ptr, @intCast(line.len), 0);
+
+        const jv = c.jv_parser_next(self.parser);
+
+        c.jq_start(self.st, jv, 0);
+
+        const out = c.jq_next(self.st);
+
+        const repr = c.jv_dump_string_trunc(out, self.buffer.ptr, @intCast(self.buffer.len));
+        return std.mem.span(repr);
     }
 };
 
-fn err_report(_: ?*anyopaque, value: c.jv) callconv(.C) void {
-    var buf: [256]u8 = undefined;
+test "projection" {
+    const jq = try JQ.init("{subject: .subject}", std.testing.allocator);
+    defer jq.deinit();
 
-    _ = c.jv_dump_string_trunc(value, &buf, 256);
+    var out = try jq.project("{\"subject\": \"world\", \"greeting\": \"hello\"}");
+    try std.testing.expectEqualSlices(u8, out, "{\"subject\":\"world\"}");
 
-    std.log.err("\x1b[31m{s}\x1b[0m\n", .{buf});
+    out = try jq.project("{\"timestamp\":\"2024-03-14T00:55:51.506729Z\",\"level\":\"INFO\",\"fields\":{\"message\":\"hello\"},\"target\":\"sample_builder\",\"filename\":\"src/main.rs\"}");
+}
+
+test "multi projection" {
+    const jq = try JQ.init("{level: .level}", std.testing.allocator);
+    defer jq.deinit();
+
+    var out = try jq.project("{\"timestamp\":\"2024-03-14T00:55:51.506729Z\",\"level\":\"INFO\",\"fields\":{\"message\":\"hello\"},\"target\":\"sample_builder\",\"filename\":\"src/main.rs\"}");
+    try std.testing.expectEqualSlices(u8, out, "{\"level\":\"INFO\"}");
+
+    out = try jq.project("{\"timestamp\":\"2024-03-14T00:55:51.506797Z\",\"level\":\"INFO\",\"fields\":{\"message\":\"world\"},\"target\":\"sample_builder\",\"filename\":\"src/main.rs\"}");
+    try std.testing.expectEqualSlices(u8, out, "{\"level\":\"INFO\"}");
+
+    out = try jq.project("{\"timestamp\":\"2024-03-14T00:55:51.506811Z\",\"level\":\"WARN\",\"fields\":{\"message\":\"do well\"},\"target\":\"sample_builder\",\"filename\":\"src/main.rs\"}");
+    try std.testing.expectEqualSlices(u8, out, "{\"level\":\"WARN\"}");
+
+    out = try jq.project("{\"timestamp\":\"2024-03-14T00:55:51.506824Z\",\"level\":\"DEBUG\",\"fields\":{\"message\":\"often\"},\"target\":\"sample_builder\",\"filename\":\"src/main.rs\"}");
+    try std.testing.expectEqualSlices(u8, out, "{\"level\":\"DEBUG\"}");
+
+    out = try jq.project("{\"timestamp\":\"2024-03-14T00:55:51.506836Z\",\"level\":\"TRACE\",\"fields\":{\"message\":\"never\"},\"target\":\"sample_builder\",\"filename\":\"src/main.rs\"}");
+    try std.testing.expectEqualSlices(u8, out, "{\"level\":\"TRACE\"}");
+
+    out = try jq.project("{\"timestamp\":\"2024-03-14T00:55:51.506847Z\",\"level\":\"ERROR\",\"fields\":{\"message\":\"is to human\"},\"target\":\"sample_builder\",\"filename\":\"src/main.rs\"}");
+    try std.testing.expectEqualSlices(u8, out, "{\"level\":\"ERROR\"}");
 }
