@@ -160,76 +160,14 @@ pub const System = struct {
             try self.render.flush();
         }
 
+        try self.render.true_fg(self.theme.default.fg);
+        try self.render.true_bg(self.theme.default.bg);
+
         for (view.len..self.render.window.height) |i| {
             try self.render.move_cursor(@intCast(i), 0);
             try self.render.push_line("");
             try self.render.flush();
         }
-    }
-
-    fn move_up(self: *@This()) !void {
-        if (self.state.line == 0) {
-            if (self.state.base == 0) {
-                return;
-            } else {
-                self.state.base -= 1;
-                try self.paint_full();
-            }
-        } else {
-            const prev_line = self.state.line;
-            self.state.line -= 1;
-
-            const prev = self.store.list.items[prev_line];
-            const line = self.store.list.items[self.state.line];
-
-            try self.render.move_cursor(@intCast(prev_line), 0);
-            try self.render.true_bg(self.theme.default.bg);
-            try self.render.true_fg(self.theme.default.fg);
-            try self.render.push_line(prev);
-
-            try self.render.move_cursor(@intCast(self.state.line), 0);
-            try self.render.true_fg(self.theme.default.fg);
-            try self.render.true_bg(self.theme.default.bg);
-            try self.render.push_line(line);
-            try self.render.flush();
-        }
-    }
-
-    fn move_down(self: *@This()) !void {
-        var prev_line = self.state.line;
-
-        if (self.state.line + self.state.base >= self.store.len() -| 1) {
-            return;
-        }
-
-        self.state.line += 1;
-
-        const prev = self.store.list.items[self.state.base + prev_line];
-        const line = self.store.list.items[self.state.line + self.state.base];
-
-        if (self.state.line >= self.render.window.height) {
-            try self.render.true_bg(self.theme.default.bg);
-            try self.render.true_fg(self.theme.default.fg);
-            try self.render.pushf("\n", .{});
-            try self.render.flush();
-
-            const diff = self.state.line - self.render.window.height;
-            self.state.line -= diff;
-            prev_line -= diff;
-            self.state.base += diff;
-        }
-
-        try self.render.move_cursor(@intCast(prev_line), 0);
-        try self.render.true_bg(self.theme.default.bg);
-        try self.render.true_fg(self.theme.default.fg);
-        try self.render.push_line(prev);
-
-        try self.render.move_cursor(@intCast(self.state.line), 0);
-        try self.render.true_fg(self.theme.selected.fg);
-        try self.render.true_bg(self.theme.selected.bg);
-        try self.render.push_line(line);
-
-        try self.render.flush();
     }
 
     fn move_delta(self: *@This(), delta: isize) !void {
@@ -249,6 +187,23 @@ pub const System = struct {
 
                 self.state.base += diff;
                 self.state.line -= diff;
+            }
+
+            if (self.state.line + self.state.base >= self.store.len()) {
+                const diff = (self.state.line + self.state.base) - (self.store.len() - 1);
+                log.debug("overflow check", .{
+                    .store = self.store.len(),
+                    .diff = diff,
+                    .line = self.state.line,
+                    .base = self.state.base,
+                });
+
+                if (diff > self.state.base) {
+                    self.state.line -= diff - self.state.base;
+                    self.state.base = 0;
+                } else {
+                    self.state.base -= diff;
+                }
             }
         }
 
