@@ -14,9 +14,8 @@
         },
 
         .mirror = .{
-            .url = "https://github.com/eulegang/mirror/archive/1add7fecf48b9ff851121fa68ab633c1204a6e5e.tar.gz",
-            .hash = "122069cfa6cc5ba2b79f62e660641cd08abb6f418d144539ce891caa05fb20ba21bc",
-            //.path = "../mirror/"
+            .url = "https://github.com/eulegang/mirror/archive/ec376b5422d16d418655686965dbd35d5682d59e.tar.gz",
+            .hash = "122095dc6b7afc02c2b244b45eb8e9ff424776b6947c6d7f0ce5249e9ce4e3b9c9fb",
         },
     },
 

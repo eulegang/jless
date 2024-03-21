@@ -40,12 +40,12 @@ var projection_opt = cli.Option{
     .short_alias = 'p',
     .long_name = "project",
     .help = "jq projection",
-    .value_ref = cli.mkRef(&args.filter),
+    .value_ref = cli.mkRef(&args.projection),
 };
 
 var app = &cli.App{ .command = cli.Command{
     .name = "jless",
-    .options = &.{ &file_opt, &filter_opt },
+    .options = &.{ &file_opt, &projection_opt },
     .target = cli.CommandTarget{
         .action = cli.CommandAction{ .exec = run },
     },
@@ -59,12 +59,26 @@ pub fn run() !void {
     var system = try System.init(args.file, allocator);
     defer system.close();
 
-    if (args.filter) |f| {
-        system.filter = try JQ.init(f);
-    }
+    //if (args.filter) |f| {
+    //    system.filter = try JQ.init(f, allocator);
+    //}
+
+    //defer {
+    //    if (system.filter) |f| {
+    //        f.deinit();
+    //    }
+    //}
 
     if (args.projection) |p| {
-        system.projection = try JQ.init(p);
+        std.debug.print("hello? {s}\n", .{p});
+        system.projection = try JQ.init(p, allocator);
+        std.debug.print("worked\n", .{});
+    }
+
+    defer {
+        if (system.projection) |p| {
+            p.deinit();
+        }
     }
 
     try system.setup();

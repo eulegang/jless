@@ -32,8 +32,8 @@ pub const System = struct {
     state: State,
     theme: ColorTheme,
 
-    filter: ?JQ,
-    projection: ?JQ,
+    filter: ?*JQ,
+    projection: ?*JQ,
 
     pub fn init(file: ?[]const u8, alloc: std.mem.Allocator) !System {
         const inputs = try Inputs.init(file);
@@ -78,26 +78,7 @@ pub const System = struct {
             try self.store.push(line);
         }
 
-        const view = self.store.view(0, self.render.window.height);
-        for (0.., view) |i, item| {
-            try self.render.move_cursor(@intCast(i), 0);
-            if (i == self.state.line) {
-                try self.render.true_bg(self.theme.selected.bg);
-                try self.render.true_fg(self.theme.selected.fg);
-            } else {
-                try self.render.true_bg(self.theme.default.bg);
-                try self.render.true_fg(self.theme.default.fg);
-            }
-
-            try self.render.push_line(item);
-            try self.render.flush();
-        }
-
-        for (view.len..self.render.window.height) |i| {
-            try self.render.move_cursor(@intCast(i), 0);
-            try self.render.push_line("");
-            try self.render.flush();
-        }
+        try self.paint_full();
     }
 
     pub fn tick(self: *@This()) !bool {
@@ -146,6 +127,8 @@ pub const System = struct {
 
     pub fn paint_full(self: *@This()) !void {
         const view = self.store.view(self.state.base, self.render.window.height);
+
+        //log.debug("projector {?*}", .{self.projection});
         for (0.., view) |i, item| {
             try self.render.move_cursor(@intCast(i), 0);
             if (i == self.state.line) {
@@ -156,7 +139,14 @@ pub const System = struct {
                 try self.render.true_bg(self.theme.default.bg);
             }
 
-            try self.render.push_line(item);
+            if (self.projection) |proj| {
+                const line = proj.project(item) catch "error!";
+                try self.render.push_line(line);
+            } else {
+                try self.render.push_line(item);
+            }
+            //try self.render.push_line(item);
+
             try self.render.flush();
         }
 
