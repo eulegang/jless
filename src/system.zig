@@ -6,21 +6,13 @@ const Term = @import("term.zig").Term;
 const Store = @import("store.zig").Store;
 const Render = @import("render.zig").Render;
 
+const theme = @import("theme.zig");
+
 const log = std.log.scoped(.system);
 
 const State = struct {
     line: usize,
     base: usize,
-};
-
-const ColorTheme = struct {
-    selected: ColorPair,
-    default: ColorPair,
-};
-
-const ColorPair = struct {
-    fg: u32,
-    bg: u32,
 };
 
 pub const System = struct {
@@ -30,7 +22,7 @@ pub const System = struct {
     store: *Store,
     render: Render,
     state: State,
-    theme: ColorTheme,
+    theme: theme.Theme,
 
     filter: ?*JQ,
     projection: ?*JQ,
@@ -49,16 +41,7 @@ pub const System = struct {
             .store = store,
             .render = render,
             .state = state,
-            .theme = .{
-                .default = .{
-                    .bg = 0x24_28_3b,
-                    .fg = 0x73_7A_A2,
-                },
-                .selected = .{
-                    .fg = 0x33_aa_33,
-                    .bg = 0x34_38_4A,
-                },
-            },
+            .theme = theme.Theme.DEFAULT,
             .filter = null,
             .projection = null,
         };
@@ -132,11 +115,9 @@ pub const System = struct {
         for (0.., view) |i, item| {
             try self.render.move_cursor(@intCast(i), 0);
             if (i == self.state.line) {
-                try self.render.true_fg(self.theme.selected.fg);
-                try self.render.true_bg(self.theme.selected.bg);
+                try self.render.render(self.theme.selected);
             } else {
-                try self.render.true_fg(self.theme.default.fg);
-                try self.render.true_bg(self.theme.default.bg);
+                try self.render.render(self.theme.default);
             }
 
             if (self.projection) |proj| {
@@ -150,8 +131,7 @@ pub const System = struct {
             try self.render.flush();
         }
 
-        try self.render.true_fg(self.theme.default.fg);
-        try self.render.true_bg(self.theme.default.bg);
+        try self.render.render(self.theme.default);
 
         for (view.len..self.render.window.height) |i| {
             try self.render.move_cursor(@intCast(i), 0);
