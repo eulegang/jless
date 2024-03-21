@@ -2,6 +2,11 @@ const std = @import("std");
 
 const Err = std.mem.Allocator.Error;
 
+pub const Result = struct {
+    offset: usize,
+    line: []const u8,
+};
+
 pub const Store = struct {
     allocator: std.mem.Allocator,
     list: std.ArrayList([]const u8),
@@ -31,6 +36,36 @@ pub const Store = struct {
         const end = @min(self.list.items.len, base + window);
 
         return self.list.items[base..end];
+    }
+
+    pub fn search_forward(self: *Store, base: usize, comptime t: type, ctx: t, pred: fn (ctx: t, []const u8) bool) ?Result {
+        while (base < self.list.items.len) : (base += 1) {
+            const line = self.list.items[base];
+
+            if (pred(ctx, line)) {
+                return .Result{
+                    .offset = base,
+                    .line = line,
+                };
+            }
+        }
+
+        return null;
+    }
+
+    pub fn search_backwards(self: *Store, base: usize, comptime t: type, ctx: t, pred: fn (ctx: t, []const u8) bool) ?Result {
+        while (base < self.list.items.len) : (base -= 1) {
+            const line = self.list.items[base];
+
+            if (pred(ctx, line)) {
+                return .Result{
+                    .offset = base,
+                    .line = line,
+                };
+            }
+        }
+
+        return null;
     }
 
     pub fn at(self: *Store, index: usize) ?[]const u8 {

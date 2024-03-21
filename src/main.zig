@@ -63,15 +63,15 @@ pub fn run() !void {
     var system = try System.init(args.file, allocator);
     defer system.close();
 
-    //if (args.filter) |f| {
-    //    system.filter = try JQ.init(f, allocator);
-    //}
+    if (args.filter) |f| {
+        system.filter = try JQ.init(f, allocator);
+    }
 
-    //defer {
-    //    if (system.filter) |f| {
-    //        f.deinit();
-    //    }
-    //}
+    defer {
+        if (system.filter) |f| {
+            f.deinit();
+        }
+    }
 
     if (args.projection) |p| {
         std.debug.print("hello? {s}\n", .{p});
