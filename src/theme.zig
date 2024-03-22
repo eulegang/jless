@@ -13,8 +13,8 @@ pub const Theme = struct {
             .bg = .{ .true = .{ .red = 0x24, .green = 0x28, .blue = 0x3b } },
         },
         .selected = .{
-            .fg = .{ .true = .{ .red = 0x33, .green = 0xAA, .blue = 0x33 } },
-            .bg = .{ .true = .{ .red = 0x34, .green = 0xe8, .blue = 0x4A } },
+            .bg = .{ .true = .{ .red = 0x33, .green = 0xAA, .blue = 0x33 } },
+            .fg = .{ .true = .{ .red = 0x24, .green = 0x28, .blue = 0x3b } },
         },
     };
 };
