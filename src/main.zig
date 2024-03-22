@@ -4,6 +4,8 @@ const JQ = @import("jq.zig").JQ;
 
 const System = @import("system.zig").System;
 
+const theme = @import("theme.zig");
+
 pub const std_options = .{
     // Set the log level to info
     .log_level = std.log.Level.debug,
@@ -56,6 +58,8 @@ pub fn main() !void {
 }
 
 pub fn run() !void {
+    var env = try std.process.getEnvMap(allocator);
+
     var system = try System.init(args.file, allocator);
     defer system.close();
 
@@ -81,7 +85,19 @@ pub fn run() !void {
         }
     }
 
+    if (env.get("JLESS_THEME")) |theme_env| {
+        if (theme.Theme.parse(theme_env)) |t| {
+            system.theme = t;
+        } else {
+            return MainError.invalid_theme;
+        }
+    }
+
     try system.setup();
 
     while (try system.tick()) {}
 }
+
+const MainError = error{
+    invalid_theme,
+};
