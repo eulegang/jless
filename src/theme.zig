@@ -7,7 +7,7 @@ pub const Theme = struct {
     selected: ColorPair,
     default: ColorPair,
 
-    pub const DEFAULT = .{
+    pub const DEFAULT = Theme{
         .default = .{
             .fg = .{ .true = .{ .red = 0x73, .green = 0x7A, .blue = 0xA2 } },
             .bg = .{ .true = .{ .red = 0x24, .green = 0x28, .blue = 0x3b } },
@@ -17,6 +17,39 @@ pub const Theme = struct {
             .fg = .{ .true = .{ .red = 0x24, .green = 0x28, .blue = 0x3b } },
         },
     };
+
+    pub fn parse(repr: []const u8) ?Theme {
+        var iter = std.mem.splitScalar(u8, repr, ';');
+
+        var theme = Theme.DEFAULT;
+
+        while (iter.next()) |part| {
+            if (part.len == 0) {
+                continue;
+            }
+
+            if (std.mem.indexOfScalar(u8, part, '=')) |i| {
+                const name = std.mem.trim(u8, part[0..i], " \t");
+                const value = std.mem.trim(u8, part[i + 1 ..], " \t");
+
+                const color = Color.parse(value) orelse return null;
+
+                if (std.mem.eql(u8, name, "sel.fg")) {
+                    theme.selected.fg = color;
+                } else if (std.mem.eql(u8, name, "sel.bg")) {
+                    theme.selected.bg = color;
+                } else if (std.mem.eql(u8, name, "def.fg")) {
+                    theme.default.fg = color;
+                } else if (std.mem.eql(u8, name, "def.bg")) {
+                    theme.default.bg = color;
+                }
+            } else {
+                return null;
+            }
+        }
+
+        return theme;
+    }
 };
 
 pub const ColorPair = struct {
@@ -50,7 +83,7 @@ pub const Color = union(enum) {
     basic: BasicColor,
     true: TrueColor,
 
-    fn parse(repr: []const u8) ?Color {
+    pub fn parse(repr: []const u8) ?Color {
         if (repr.len == 7 and repr[0] == '#') {
             var valid = true;
             for (repr[1..]) |ch| {
@@ -246,4 +279,43 @@ test "parse color" {
 
     try std.testing.expectEqual(null, Color.parse("#A0000AA"));
     try std.testing.expectEqual(null, Color.parse("#A0000"));
+}
+
+test "parse theme" {
+    try std.testing.expectEqual(Theme.DEFAULT, Theme.parse(""));
+    try std.testing.expectEqual(
+        Color{ .true = .{ .red = 0, .green = 255, .blue = 0 } },
+        (Theme.parse("sel.fg=#00ff00") orelse unreachable).selected.fg,
+    );
+
+    try std.testing.expectEqual(
+        Color{ .true = .{ .red = 0, .green = 0, .blue = 0xf0 } },
+        (Theme.parse("sel.bg=#0000f0") orelse unreachable).selected.bg,
+    );
+
+    try std.testing.expectEqual(
+        Color{ .true = .{ .red = 255, .green = 0, .blue = 255 } },
+        (Theme.parse("def.fg=#ff00ff") orelse unreachable).default.fg,
+    );
+
+    try std.testing.expectEqual(
+        Color{ .true = .{ .red = 15, .green = 0, .blue = 255 } },
+        (Theme.parse("def.bg=#0f00ff") orelse unreachable).default.bg,
+    );
+
+    try std.testing.expectEqual(
+        ColorPair{
+            .bg = Color{ .true = .{ .red = 15, .green = 0, .blue = 255 } },
+            .fg = Color{ .true = .{ .red = 0, .green = 255, .blue = 0 } },
+        },
+        (Theme.parse("def.bg=#0f00ff;def.fg=#00ff00") orelse unreachable).default,
+    );
+
+    try std.testing.expectEqual(
+        ColorPair{
+            .bg = Color{ .true = .{ .red = 15, .green = 0, .blue = 255 } },
+            .fg = Color{ .true = .{ .red = 0, .green = 255, .blue = 0 } },
+        },
+        (Theme.parse("    def.bg   = \t   #0f00ff\t; def.fg   =   #00ff00    ") orelse unreachable).default,
+    );
 }
