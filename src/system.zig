@@ -1,6 +1,8 @@
 const std = @import("std");
 const JQ = @import("jq.zig").JQ;
 
+const index = @import("index.zig");
+
 const Inputs = @import("inputs.zig").Inputs;
 const Term = @import("term.zig").Term;
 const Store = @import("store.zig").Store;
@@ -19,7 +21,7 @@ pub const System = struct {
     inputs: Inputs,
     term: Term,
 
-    store: *Store,
+    store: *index.Store(0x1000),
     render: Render,
     state: State,
     theme: theme.Theme,
@@ -27,11 +29,12 @@ pub const System = struct {
     filter: ?*JQ,
     projection: ?*JQ,
 
-    pub fn init(file: ?[]const u8, alloc: std.mem.Allocator) !System {
+    pub fn init(file: []const u8, alloc: std.mem.Allocator) !System {
         const inputs = try Inputs.init(file);
         const term = Term.init();
 
-        const store = try Store.init(alloc);
+        const store = try index.Store(0x1000).init(file, alloc);
+        //const store = try Store.init(alloc);
         const render = try Render.init(1);
         const state = State{ .line = 0, .base = 0 };
 
@@ -57,9 +60,7 @@ pub const System = struct {
     pub fn setup(self: *@This()) !void {
         self.term.raw();
 
-        while (try self.inputs.load_gen()) |line| {
-            try self.store.push(line);
-        }
+        try self.store.build_index();
 
         try self.paint_full();
     }
@@ -67,9 +68,7 @@ pub const System = struct {
     pub fn tick(self: *@This()) !bool {
         const event = try self.inputs.event();
         switch (event) {
-            .line => |line| {
-                try self.store.push(line);
-            },
+            .line => {},
 
             .input => |input| {
                 log.debug("pretick", .{ .state = self.state, .window = self.render.window });
@@ -126,7 +125,6 @@ pub const System = struct {
             } else {
                 try self.render.push_line(item);
             }
-            //try self.render.push_line(item);
 
             try self.render.flush();
         }

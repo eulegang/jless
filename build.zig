@@ -91,6 +91,12 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const jsonp_tests = b.addTest(.{
+        .root_source_file = .{ .path = "src/jsonp.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
+
     jq_tests.addIncludePath(.{ .path = "/usr/include/" });
     jq_tests.linkSystemLibrary("jq");
     jq_tests.linkLibC();
@@ -99,6 +105,7 @@ pub fn build(b: *std.Build) void {
     const run_render_tests = b.addRunArtifact(render_tests);
     const run_jq_tests = b.addRunArtifact(jq_tests);
     const run_theme_tests = b.addRunArtifact(theme_tests);
+    const run_jsonp_tests = b.addRunArtifact(jsonp_tests);
 
     // Similar to creating the run step earlier, this exposes a `test` step to
     // the `zig build --help` menu, providing a way for the user to request
@@ -109,4 +116,5 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_render_tests.step);
     test_step.dependOn(&run_jq_tests.step);
     test_step.dependOn(&run_theme_tests.step);
+    test_step.dependOn(&run_jsonp_tests.step);
 }
