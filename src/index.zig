@@ -1,11 +1,66 @@
 const std = @import("std");
+const jsonp = @import("jsonp.zig");
 
-const Error = std.os.MMapError || std.os.OpenError || std.mem.Allocator.Error;
+const Error = std.os.MMapError || std.os.OpenError || std.mem.Allocator.Error || error{OutOfCachePages};
+
+const PAGE_MASK: usize = 0xFFF;
 
 pub const Entry = packed struct {
     index: u31,
-    flag: bool,
+    mixed: bool,
+
+    fn same_page(self: Entry, other: Entry) bool {
+        const ent_page = self.index & ~PAGE_MASK;
+        const oth_page = other.index & ~PAGE_MASK;
+
+        return ent_page == oth_page;
+    }
+
+    fn offset(self: Entry) usize {
+        return self.index & PAGE_MASK;
+    }
+
+    fn page(self: Entry) usize {
+        return (self.index & ~PAGE_MASK) >> 12;
+    }
 };
+
+pub fn FSlice(comptime size: usize) type {
+    return struct {
+        start: u32,
+        end: u32,
+        pages: std.ArrayList(*Page(size)),
+
+        fn read(self: *@This(), buf: []u8) usize {
+            const dst = buf[0 .. self.end - self.start];
+            const src = self.pages.items[0].base[self.start..self.end];
+            std.mem.copyForwards(u8, dst, src);
+            return self.end - self.start;
+
+            // need to span pages
+
+            //const end_page = ((self.end & ~PAGE_MASK) >> 12) + 1;
+            //for (0..end_page) |p| {
+            //    std.debug.print("page: {}\n", .{p});
+
+            //    const s = self.start & PAGE_MASK;
+            //    const e = self.end;
+
+            //    std.debug.print("s: {}, e: {}\n", .{ s, e });
+            //}
+
+            //return 0;
+        }
+
+        fn deinit(self: *@This()) void {
+            for (self.pages.items) |p| {
+                p.dec();
+            }
+
+            self.pages.deinit();
+        }
+    };
+}
 
 const Index = struct {
     const Self = @This();
@@ -30,14 +85,21 @@ pub fn Page(comptime size: usize) type {
         const Self = @This();
 
         count: usize,
-        base: [*]align(std.mem.page_size) u8,
+        idx: usize,
+        base: []align(std.mem.page_size) u8,
         alloc: std.mem.Allocator,
 
-        fn init(alloc: std.mem.Allocator, fd: std.os.fd_t, offset: usize) Error!*Self {
+        fn init(
+            alloc: std.mem.Allocator,
+            fd: std.os.fd_t,
+            page: usize,
+        ) Error!*Self {
+            const offset = page << 12;
             var self = try alloc.create(Self);
-            self.base = try std.os.mmap(null, size, std.os.PROT.READ, .{}, fd, offset);
+            self.base = try std.os.mmap(null, size, std.os.PROT.READ, .{ .TYPE = .PRIVATE }, fd, offset);
             self.count = 1;
             self.alloc = alloc;
+            self.idx = page;
             return self;
         }
 
@@ -68,31 +130,78 @@ pub fn Store(comptime size: usize) type {
         alloc: std.mem.Allocator,
         index: Index,
 
-        pub fn init(file: []const u8, alloc: std.mem.Allocator) Error!*Store(size) {
-            var self = try alloc.create(Self);
+        caches: [8]?*Page(size),
+
+        pub fn init(file: []const u8, alloc: std.mem.Allocator) Error!*Self {
+            const self = try alloc.create(Self);
             errdefer alloc.destroy(self);
+            self.alloc = alloc;
 
             self.fd = try std.os.open(file, .{ .ACCMODE = .RDONLY }, 0o644);
             errdefer std.os.close(self.fd);
 
             self.index = Index.init(alloc);
+            self.caches = .{
+                null, null, null, null, null, null, null, null,
+            };
 
             return self;
-        }
-
-        fn page(self: *Self, offset: usize) Error!*Page(size) {
-            Page(size).init(
-                self.alloc,
-                offset,
-                self,
-            );
         }
 
         pub fn deinit(self: *Self) void {
             self.index.deinit();
             std.os.close(self.fd);
 
+            for (self.caches) |cache| {
+                if (cache) |p| {
+                    p.dec();
+                }
+            }
+
             self.alloc.destroy(self);
+        }
+
+        fn page_offset(self: *Self, offset: usize) Error!*Page(size) {
+            return try Page(size).init(
+                self.alloc,
+                self.fd,
+                offset,
+            );
+        }
+
+        fn load_page(self: *Self, page: usize) Error!*Page(size) {
+            var empty: ?usize = null;
+            var unused: ?usize = null;
+
+            for (0.., self.caches) |i, cache| {
+                if (cache) |p| {
+                    if (p.idx == page) {
+                        return p;
+                    }
+
+                    if (p.count == 1 and unused == null) {
+                        unused = i;
+                    }
+                } else if (empty == null) {
+                    empty = i;
+                }
+            }
+
+            if (empty) |i| {
+                const p = try self.page_offset(page);
+                self.caches[i] = p;
+                return p;
+            }
+
+            if (unused) |i| {
+                self.caches[i].?.dec();
+
+                const p = try self.page_offset(page);
+                self.caches[i] = p;
+                return p;
+            }
+
+            return Error.OutOfCachePages;
         }
 
         pub fn build_index(self: *Self) !void {
@@ -100,8 +209,73 @@ pub fn Store(comptime size: usize) type {
                 self.index.valid.clearRetainingCapacity();
             }
 
-            const st = try std.os.fstat(self.fd);
-            _ = st.size;
+            const file_size: usize = @intCast((try std.os.fstat(self.fd)).size);
+            const json_state = try jsonp.JsonP.init(self.alloc);
+            defer json_state.deinit(self.alloc);
+
+            var p = try self.page_offset(0);
+            var page_idx: usize = 0;
+            var start: usize = 0;
+
+            for (0..file_size) |i| {
+                const p_off = (i & ~PAGE_MASK) >> 12;
+                const b_off = i & PAGE_MASK;
+
+                if (page_idx != p_off) {
+                    p.dec();
+                    page_idx = p_off;
+
+                    p = try self.page_offset(p_off);
+                }
+
+                const b = p.base[b_off];
+
+                if (try json_state.visit(b)) |state| {
+                    const mixed: bool = switch (state) {
+                        .Success => false,
+                        .Failed => true,
+                    };
+
+                    const entry = Entry{
+                        .mixed = mixed,
+                        .index = @intCast(start),
+                    };
+
+                    try self.index.valid.append(entry);
+                    start = i + 1;
+                }
+            }
+
+            const entry = Entry{
+                .mixed = false,
+                .index = @intCast(start),
+            };
+
+            try self.index.valid.append(entry);
+
+            p.dec();
+        }
+
+        pub fn at(self: *Self, idx: usize) Error!?FSlice(size) {
+            if (self.index.valid.items.len - 1 <= idx) {
+                return null;
+            }
+
+            const entry = self.index.valid.items[idx];
+            const end = self.index.valid.items[idx + 1];
+
+            var content: FSlice(size) = undefined;
+            content.start = @intCast(entry.offset());
+            content.end = @intCast((end.index - 1) - (entry.index & ~PAGE_MASK));
+            content.pages = std.ArrayList(*Page(size)).init(self.alloc);
+
+            for (entry.page()..end.page() + 1) |i| {
+                var page = try self.load_page(i);
+                page.inc();
+                try content.pages.append(page);
+            }
+
+            return content;
         }
 
         pub fn view(self: *Self, base: usize, window: usize) [][]const u8 {
@@ -116,4 +290,89 @@ pub fn Store(comptime size: usize) type {
             return self.index.valid.items.len;
         }
     };
+}
+
+test "sample.log" {
+    var store = try Store(0x1000).init("sample.log", std.testing.allocator);
+    defer store.deinit();
+
+    try store.build_index();
+
+    var buf: [4096]u8 = undefined;
+
+    try std.testing.expectEqual(7, store.index.valid.items.len);
+
+    {
+        var slice = try store.at(0) orelse @panic("no storage");
+        defer slice.deinit();
+        const n = slice.read(&buf);
+
+        try std.testing.expectEqualSlices(
+            u8,
+            "{\"timestamp\":\"2024-03-14T00:55:51.506729Z\",\"level\":\"INFO\",\"fields\":{\"message\":\"hello\"},\"target\":\"sample_builder\",\"filename\":\"src/main.rs\"}",
+            buf[0..n],
+        );
+    }
+
+    {
+        var slice = try store.at(1) orelse @panic("no storage");
+        defer slice.deinit();
+        const n = slice.read(&buf);
+
+        try std.testing.expectEqualSlices(
+            u8,
+            "{\"timestamp\":\"2024-03-14T00:55:51.506797Z\",\"level\":\"INFO\",\"fields\":{\"message\":\"world\"},\"target\":\"sample_builder\",\"filename\":\"src/main.rs\"}",
+            buf[0..n],
+        );
+    }
+
+    {
+        var slice = try store.at(2) orelse @panic("no storage");
+        defer slice.deinit();
+        const n = slice.read(&buf);
+
+        try std.testing.expectEqualSlices(
+            u8,
+            "{\"timestamp\":\"2024-03-14T00:55:51.506811Z\",\"level\":\"WARN\",\"fields\":{\"message\":\"do well\"},\"target\":\"sample_builder\",\"filename\":\"src/main.rs\"}",
+            buf[0..n],
+        );
+    }
+
+    {
+        var slice = try store.at(3) orelse @panic("no storage");
+        defer slice.deinit();
+        const n = slice.read(&buf);
+
+        try std.testing.expectEqualSlices(
+            u8,
+            "{\"timestamp\":\"2024-03-14T00:55:51.506824Z\",\"level\":\"DEBUG\",\"fields\":{\"message\":\"often\"},\"target\":\"sample_builder\",\"filename\":\"src/main.rs\"}",
+            buf[0..n],
+        );
+    }
+
+    {
+        var slice = try store.at(4) orelse @panic("no storage");
+        defer slice.deinit();
+        const n = slice.read(&buf);
+
+        try std.testing.expectEqualSlices(
+            u8,
+            "{\"timestamp\":\"2024-03-14T00:55:51.506836Z\",\"level\":\"TRACE\",\"fields\":{\"message\":\"never\"},\"target\":\"sample_builder\",\"filename\":\"src/main.rs\"}",
+            buf[0..n],
+        );
+    }
+
+    {
+        var slice = try store.at(5) orelse @panic("no storage");
+        defer slice.deinit();
+        const n = slice.read(&buf);
+
+        try std.testing.expectEqualSlices(
+            u8,
+            "{\"timestamp\":\"2024-03-14T00:55:51.506847Z\",\"level\":\"ERROR\",\"fields\":{\"message\":\"is to human\"},\"target\":\"sample_builder\",\"filename\":\"src/main.rs\"}",
+            buf[0..n],
+        );
+    }
+
+    try std.testing.expectEqual(null, try store.at(6));
 }

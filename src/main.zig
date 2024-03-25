@@ -78,9 +78,7 @@ pub fn run() !void {
     }
 
     if (args.projection) |p| {
-        std.debug.print("hello? {s}\n", .{p});
         system.projection = try JQ.init(p, allocator);
-        std.debug.print("worked\n", .{});
     }
 
     defer {

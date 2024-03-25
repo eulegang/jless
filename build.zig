@@ -67,32 +67,27 @@ pub fn build(b: *std.Build) void {
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
 
-    const exe_unit_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/main.zig" },
-        .target = target,
-        .optimize = optimize,
-    });
+    var runs = std.ArrayList(*std.Build.Step.Run).init(b.allocator);
+    const tests_files: [5][]const u8 = .{
+        "src/main.zig",
+        "src/index.zig",
+        "src/render.zig",
+        "src/theme.zig",
+        "src/jsonp.zig",
+    };
 
-    const render_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/render.zig" },
-        .target = target,
-        .optimize = optimize,
-    });
+    for (tests_files) |file| {
+        const tests = b.addTest(.{
+            .root_source_file = .{ .path = file },
+            .target = target,
+            .optimize = optimize,
+        });
+
+        runs.append(b.addRunArtifact(tests)) catch unreachable;
+    }
 
     const jq_tests = b.addTest(.{
         .root_source_file = .{ .path = "src/jq.zig" },
-        .target = target,
-        .optimize = optimize,
-    });
-
-    const theme_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/theme.zig" },
-        .target = target,
-        .optimize = optimize,
-    });
-
-    const jsonp_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/jsonp.zig" },
         .target = target,
         .optimize = optimize,
     });
@@ -101,20 +96,16 @@ pub fn build(b: *std.Build) void {
     jq_tests.linkSystemLibrary("jq");
     jq_tests.linkLibC();
 
-    const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
-    const run_render_tests = b.addRunArtifact(render_tests);
     const run_jq_tests = b.addRunArtifact(jq_tests);
-    const run_theme_tests = b.addRunArtifact(theme_tests);
-    const run_jsonp_tests = b.addRunArtifact(jsonp_tests);
 
     // Similar to creating the run step earlier, this exposes a `test` step to
     // the `zig build --help` menu, providing a way for the user to request
     // running the unit tests.
     const test_step = b.step("test", "Run unit tests");
 
-    test_step.dependOn(&run_exe_unit_tests.step);
-    test_step.dependOn(&run_render_tests.step);
+    for (runs.items) |run| {
+        test_step.dependOn(&run.step);
+    }
+
     test_step.dependOn(&run_jq_tests.step);
-    test_step.dependOn(&run_theme_tests.step);
-    test_step.dependOn(&run_jsonp_tests.step);
 }

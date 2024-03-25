@@ -36,7 +36,7 @@ pub const JsonP = struct {
         self.escape = false;
     }
 
-    fn visit(self: *JsonP, ch: u8) !?Report {
+    pub fn visit(self: *JsonP, ch: u8) !?Report {
         switch (ch) {
             '{' => try self.stack.push(Obj),
             '}' => {
