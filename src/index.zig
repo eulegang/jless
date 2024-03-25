@@ -4,6 +4,47 @@ const jsonp = @import("jsonp.zig");
 const Error = std.os.MMapError || std.os.OpenError || std.mem.Allocator.Error || error{OutOfCachePages};
 
 const PAGE_MASK: usize = 0xFFF;
+const PAGE: usize = 0x1000;
+
+const Windower = struct {
+    const Window = struct {
+        start: u16,
+        end: u16,
+
+        fn len(self: Window) usize {
+            return @intCast(self.end - self.start);
+        }
+
+        fn buffer(self: Window, buf: []const u8) []const u8 {
+            return buf[self.start..self.end];
+        }
+    };
+
+    start: u32,
+    end: u32,
+
+    fn next(self: *@This()) ?Window {
+        const PAGEu32: u32 = @intCast(PAGE);
+        const PAGE_MASKu32: u32 = @intCast(PAGE_MASK);
+        if (self.start >= self.end) {
+            return null;
+        }
+
+        const start = self.start & PAGE_MASK;
+
+        var end = PAGEu32;
+        if ((self.end & ~PAGE_MASKu32) == (self.start & ~PAGE_MASKu32)) {
+            end = self.end & PAGE_MASKu32;
+        }
+
+        self.start = (self.start + PAGEu32) & (~PAGE_MASKu32);
+
+        return Window{
+            .start = @intCast(start),
+            .end = @intCast(end),
+        };
+    }
+};
 
 pub const Entry = packed struct {
     index: u31,
@@ -32,24 +73,21 @@ pub fn FSlice(comptime size: usize) type {
         pages: std.ArrayList(*Page(size)),
 
         fn read(self: *@This(), buf: []u8) usize {
-            const dst = buf[0 .. self.end - self.start];
-            const src = self.pages.items[0].base[self.start..self.end];
-            std.mem.copyForwards(u8, dst, src);
-            return self.end - self.start;
+            var cur: usize = 0;
+            var page: usize = 0;
+            var windower = Windower{ .start = self.start, .end = self.end };
 
-            // need to span pages
+            while (windower.next()) |window| {
+                const dst = buf[cur .. cur + window.len()];
+                const src = window.buffer(self.pages.items[page].base);
 
-            //const end_page = ((self.end & ~PAGE_MASK) >> 12) + 1;
-            //for (0..end_page) |p| {
-            //    std.debug.print("page: {}\n", .{p});
+                @memcpy(dst, src);
 
-            //    const s = self.start & PAGE_MASK;
-            //    const e = self.end;
+                page += 1;
+                cur += window.len();
+            }
 
-            //    std.debug.print("s: {}, e: {}\n", .{ s, e });
-            //}
-
-            //return 0;
+            return cur;
         }
 
         fn deinit(self: *@This()) void {
@@ -375,4 +413,42 @@ test "sample.log" {
     }
 
     try std.testing.expectEqual(null, try store.at(6));
+}
+
+test "windowing" {
+    var windower = Windower{
+        .start = 0,
+        .end = 157,
+    };
+
+    try std.testing.expectEqual(Windower.Window{ .start = 0, .end = 157 }, windower.next().?);
+    try std.testing.expectEqual(null, windower.next());
+
+    windower = Windower{
+        .start = 0xFF5,
+        .end = 0x1005,
+    };
+
+    try std.testing.expectEqual(Windower.Window{ .start = 0xFF5, .end = 0x1000 }, windower.next().?);
+    try std.testing.expectEqual(Windower.Window{ .start = 0x000, .end = 0x0005 }, windower.next().?);
+    try std.testing.expectEqual(null, windower.next());
+
+    windower = Windower{
+        .start = 0xFF5,
+        .end = 0x1005,
+    };
+
+    try std.testing.expectEqual(Windower.Window{ .start = 0xFF5, .end = 0x1000 }, windower.next().?);
+    try std.testing.expectEqual(Windower.Window{ .start = 0x000, .end = 0x0005 }, windower.next().?);
+    try std.testing.expectEqual(null, windower.next());
+
+    windower = Windower{
+        .start = 0x045,
+        .end = 0x2005,
+    };
+
+    try std.testing.expectEqual(Windower.Window{ .start = 0x045, .end = 0x1000 }, windower.next().?);
+    try std.testing.expectEqual(Windower.Window{ .start = 0x000, .end = 0x1000 }, windower.next().?);
+    try std.testing.expectEqual(Windower.Window{ .start = 0x000, .end = 0x0005 }, windower.next().?);
+    try std.testing.expectEqual(null, windower.next());
 }
