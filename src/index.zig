@@ -72,14 +72,14 @@ pub fn FSlice(comptime size: usize) type {
         end: u32,
         pages: std.ArrayList(*Page(size)),
 
-        fn read(self: *@This(), buf: []u8) usize {
+        pub fn read(self: *@This(), buf: []u8) usize {
             var cur: usize = 0;
             var page: usize = 0;
             var windower = Windower{ .start = self.start, .end = self.end };
 
             while (windower.next()) |window| {
                 const dst = buf[cur .. cur + window.len()];
-                const src = window.buffer(self.pages.items[page].base);
+                const src = self.pages.items[page].*.base[window.start..window.end];
 
                 @memcpy(dst, src);
 
@@ -90,7 +90,7 @@ pub fn FSlice(comptime size: usize) type {
             return cur;
         }
 
-        fn deinit(self: *@This()) void {
+        pub fn deinit(self: *@This()) void {
             for (self.pages.items) |p| {
                 p.dec();
             }
@@ -302,30 +302,23 @@ pub fn Store(comptime size: usize) type {
             const entry = self.index.valid.items[idx];
             const end = self.index.valid.items[idx + 1];
 
-            var content: FSlice(size) = undefined;
-            content.start = @intCast(entry.offset());
-            content.end = @intCast((end.index - 1) - (entry.index & ~PAGE_MASK));
-            content.pages = std.ArrayList(*Page(size)).init(self.alloc);
+            var slice = FSlice(size){
+                .start = @intCast(entry.offset()),
+                .end = @intCast((end.index - 1) - (entry.index & ~PAGE_MASK)),
+                .pages = std.ArrayList(*Page(size)).init(self.alloc),
+            };
 
             for (entry.page()..end.page() + 1) |i| {
                 var page = try self.load_page(i);
                 page.inc();
-                try content.pages.append(page);
+                try slice.pages.append(page);
             }
 
-            return content;
-        }
-
-        pub fn view(self: *Self, base: usize, window: usize) [][]const u8 {
-            _ = self;
-            _ = base;
-            _ = window;
-
-            unreachable;
+            return slice;
         }
 
         pub fn len(self: *Self) usize {
-            return self.index.valid.items.len;
+            return self.index.valid.items.len -| 1;
         }
     };
 }
@@ -338,7 +331,7 @@ test "sample.log" {
 
     var buf: [4096]u8 = undefined;
 
-    try std.testing.expectEqual(7, store.index.valid.items.len);
+    try std.testing.expectEqual(6, store.len());
 
     {
         var slice = try store.at(0) orelse @panic("no storage");

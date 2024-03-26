@@ -5,7 +5,6 @@ const index = @import("index.zig");
 
 const Inputs = @import("inputs.zig").Inputs;
 const Term = @import("term.zig").Term;
-const Store = @import("store.zig").Store;
 const Render = @import("render.zig").Render;
 
 const theme = @import("theme.zig");
@@ -34,7 +33,6 @@ pub const System = struct {
         const term = Term.init();
 
         const store = try index.Store(0x1000).init(file, alloc);
-        //const store = try Store.init(alloc);
         const render = try Render.init(1);
         const state = State{ .line = 0, .base = 0 };
 
@@ -108,10 +106,17 @@ pub const System = struct {
     }
 
     pub fn paint_full(self: *@This()) !void {
-        const view = self.store.view(self.state.base, self.render.window.height);
+        const top = @min(self.store.len(), self.state.base + self.render.window.height);
 
-        //log.debug("projector {?*}", .{self.projection});
-        for (0.., view) |i, item| {
+        var buffer: [4096]u8 = undefined;
+        var n: usize = 0;
+        for (0.., self.state.base..top) |i, store_pos| {
+            {
+                var fslice = try self.store.at(store_pos) orelse break;
+                defer fslice.deinit();
+                n = fslice.read(&buffer);
+            }
+
             try self.render.move_cursor(@intCast(i), 0);
             if (i == self.state.line) {
                 try self.render.render(self.theme.selected);
@@ -120,10 +125,10 @@ pub const System = struct {
             }
 
             if (self.projection) |proj| {
-                const line = proj.project(item) catch "error!";
+                const line = proj.project(buffer[0..n]) catch "error!";
                 try self.render.push_line(line);
             } else {
-                try self.render.push_line(item);
+                try self.render.push_line(buffer[0..n]);
             }
 
             try self.render.flush();
@@ -131,7 +136,7 @@ pub const System = struct {
 
         try self.render.render(self.theme.default);
 
-        for (view.len..self.render.window.height) |i| {
+        for (top..self.render.window.height) |i| {
             try self.render.move_cursor(@intCast(i), 0);
             try self.render.push_line("");
             try self.render.flush();
