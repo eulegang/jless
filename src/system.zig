@@ -59,6 +59,7 @@ pub const System = struct {
         self.term.raw();
 
         try self.store.build_index();
+        try self.store.build_filter(self.filter);
 
         try self.paint_full();
     }

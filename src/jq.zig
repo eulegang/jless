@@ -59,6 +59,25 @@ pub const JQ = struct {
         const repr = c.jv_dump_string_trunc(out, self.buffer.ptr, @intCast(self.buffer.len));
         return std.mem.span(repr);
     }
+
+    pub fn predicate(self: *const JQ, line: []const u8) Err!bool {
+        c.jv_parser_set_buf(self.parser, line.ptr, @intCast(line.len), 0);
+
+        const jv = c.jv_parser_next(self.parser);
+
+        c.jq_start(self.st, jv, 0);
+
+        const out = c.jq_next(self.st);
+
+        const kind = c.jv_get_kind(out);
+
+        switch (kind) {
+            c.JV_KIND_TRUE => true,
+            c.JV_KIND_NULL, c.JV_KIND_FALSE => false,
+
+            else => false,
+        }
+    }
 };
 
 test "projection" {

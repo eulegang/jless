@@ -1,5 +1,6 @@
 const std = @import("std");
 const jsonp = @import("jsonp.zig");
+const jq = @import("jq.zig");
 
 const Error = std.os.MMapError || std.os.OpenError || std.mem.Allocator.Error || error{OutOfCachePages};
 
@@ -90,6 +91,14 @@ pub fn FSlice(comptime size: usize) type {
             return cur;
         }
 
+        pub fn content(self: *const @This()) ?[]const u8 {
+            if ((self.start & ~PAGE) != (self.end & ~PAGE)) {
+                return null;
+            }
+
+            return self.pages.items[0].base[self.start..self.end];
+        }
+
         pub fn deinit(self: *@This()) void {
             for (self.pages.items) |p| {
                 p.dec();
@@ -104,17 +113,23 @@ const Index = struct {
     const Self = @This();
 
     valid: std.ArrayList(Entry),
+    filter: ?std.ArrayList(usize),
 
     fn init(alloc: std.mem.Allocator) Self {
         const valid = std.ArrayList(Entry).init(alloc);
 
         return Self{
             .valid = valid,
+            .filter = null,
         };
     }
 
     fn deinit(self: Self) void {
         self.valid.deinit();
+
+        if (self.filter) |f| {
+            f.deinit();
+        }
     }
 };
 
@@ -292,6 +307,31 @@ pub fn Store(comptime size: usize) type {
             try self.index.valid.append(entry);
 
             p.dec();
+        }
+
+        pub fn build_filter(self: *Self, jq_o: ?*jq.JQ) !void {
+            if (jq_o) |filter| {
+                self.index.filter = std.ArrayList(usize).init(self.alloc);
+                for (0..self.len()) |idx| {
+                    {
+                        var slice = self.at(idx);
+                        defer slice;
+
+                        if (slice.content()) |c| {
+                            if (try filter.predicate(c)) {
+                                try self.index.append(idx);
+                            }
+                        } else {
+                            @panic("todo!");
+                        }
+                    }
+                }
+            } else {
+                if (self.index.filter) |f| {
+                    f.deinit();
+                    self.filter = null;
+                }
+            }
         }
 
         pub fn at(self: *Self, idx: usize) Error!?FSlice(size) {
