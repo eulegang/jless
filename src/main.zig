@@ -25,11 +25,9 @@ var args = struct {
     projection: ?[]const u8 = null,
 }{};
 
-var file_opt = cli.Option{
-    .short_alias = 'f',
-    .long_name = "file",
-    .help = "file to look through",
-    .required = true,
+var file_arg = cli.PositionalArg{
+    .name = "file",
+    .help = "a file to look through",
     .value_ref = cli.mkRef(&args.file),
 };
 
@@ -49,10 +47,13 @@ var projection_opt = cli.Option{
 
 var app = &cli.App{ .command = cli.Command{
     .name = "jless",
-    .options = &.{ &file_opt, &projection_opt },
+    .options = &.{ &projection_opt, &filter_opt },
     .target = cli.CommandTarget{
         .action = cli.CommandAction{
             .exec = run,
+            .positional_args = cli.PositionalArgs{
+                .args = &.{&file_arg},
+            },
         },
     },
 } };
