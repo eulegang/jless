@@ -136,10 +136,12 @@ pub const System = struct {
 
         try self.render.render(self.theme.default);
 
-        for (top..self.render.window.height) |i| {
-            try self.render.move_cursor(@intCast(i), 0);
-            try self.render.push_line("");
-            try self.render.flush();
+        if (top < self.render.window.height) {
+            for (top..self.render.window.height) |i| {
+                try self.render.move_cursor(@intCast(i), 0);
+                try self.render.push_line("");
+                try self.render.flush();
+            }
         }
     }
 
