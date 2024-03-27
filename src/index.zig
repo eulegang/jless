@@ -92,7 +92,7 @@ pub fn FSlice(comptime size: usize) type {
         }
 
         pub fn content(self: *const @This()) ?[]const u8 {
-            if ((self.start & ~PAGE) != (self.end & ~PAGE)) {
+            if ((self.start & ~PAGE_MASK) != (self.end & ~PAGE_MASK)) {
                 return null;
             }
 
@@ -310,37 +310,59 @@ pub fn Store(comptime size: usize) type {
         }
 
         pub fn build_filter(self: *Self, jq_o: ?*jq.JQ) !void {
+            if (self.index.filter) |f| {
+                f.deinit();
+                self.index.filter = null;
+            }
+
+            var arr = std.ArrayList(usize).init(self.alloc);
+            var buf: [0x1000]u8 = undefined;
+            var n: usize = 0;
+
             if (jq_o) |filter| {
-                self.index.filter = std.ArrayList(usize).init(self.alloc);
-                for (0..self.len()) |idx| {
+                for (0..self.index.valid.items.len) |idx| {
                     {
-                        var slice = self.at(idx);
-                        defer slice;
+                        var slice = try self.at(idx) orelse break;
+                        defer slice.deinit();
 
                         if (slice.content()) |c| {
                             if (try filter.predicate(c)) {
-                                try self.index.append(idx);
+                                try arr.append(idx);
                             }
                         } else {
-                            @panic("todo!");
+                            n = slice.read(&buf);
+
+                            if (try filter.predicate(buf[0..n])) {
+                                try arr.append(idx);
+                            }
                         }
                     }
                 }
-            } else {
-                if (self.index.filter) |f| {
-                    f.deinit();
-                    self.filter = null;
-                }
+
+                self.index.filter = arr;
             }
         }
 
         pub fn at(self: *Self, idx: usize) Error!?FSlice(size) {
-            if (self.index.valid.items.len - 1 <= idx) {
-                return null;
-            }
+            var entry: Entry = undefined;
+            var end: Entry = undefined;
+            if (self.index.filter) |f| {
+                if (f.items.len <= idx) {
+                    return null;
+                }
 
-            const entry = self.index.valid.items[idx];
-            const end = self.index.valid.items[idx + 1];
+                const i = f.items[idx];
+
+                entry = self.index.valid.items[i];
+                end = self.index.valid.items[i + 1];
+            } else {
+                if (self.index.valid.items.len - 1 <= idx) {
+                    return null;
+                }
+
+                entry = self.index.valid.items[idx];
+                end = self.index.valid.items[idx + 1];
+            }
 
             var slice = FSlice(size){
                 .start = @intCast(entry.offset()),
@@ -358,12 +380,16 @@ pub fn Store(comptime size: usize) type {
         }
 
         pub fn len(self: *Self) usize {
+            if (self.index.filter) |f| {
+                return f.items.len;
+            }
+
             return self.index.valid.items.len -| 1;
         }
     };
 }
 
-test "sample.log" {
+test "sample.log with fslice read" {
     var store = try Store(0x1000).init("sample.log", std.testing.allocator);
     defer store.deinit();
 
@@ -448,6 +474,82 @@ test "sample.log" {
     try std.testing.expectEqual(null, try store.at(6));
 }
 
+test "sample.log with fslice content" {
+    var store = try Store(0x1000).init("sample.log", std.testing.allocator);
+    defer store.deinit();
+
+    try store.build_index();
+    try std.testing.expectEqual(6, store.len());
+
+    {
+        var slice = try store.at(0) orelse @panic("no storage");
+        defer slice.deinit();
+
+        try std.testing.expectEqualSlices(
+            u8,
+            "{\"timestamp\":\"2024-03-14T00:55:51.506729Z\",\"level\":\"INFO\",\"fields\":{\"message\":\"hello\"},\"target\":\"sample_builder\",\"filename\":\"src/main.rs\"}",
+            slice.content() orelse @panic("no content"),
+        );
+    }
+
+    {
+        var slice = try store.at(1) orelse @panic("no storage");
+        defer slice.deinit();
+
+        try std.testing.expectEqualSlices(
+            u8,
+            "{\"timestamp\":\"2024-03-14T00:55:51.506797Z\",\"level\":\"INFO\",\"fields\":{\"message\":\"world\"},\"target\":\"sample_builder\",\"filename\":\"src/main.rs\"}",
+            slice.content() orelse @panic("no content"),
+        );
+    }
+
+    {
+        var slice = try store.at(2) orelse @panic("no storage");
+        defer slice.deinit();
+
+        try std.testing.expectEqualSlices(
+            u8,
+            "{\"timestamp\":\"2024-03-14T00:55:51.506811Z\",\"level\":\"WARN\",\"fields\":{\"message\":\"do well\"},\"target\":\"sample_builder\",\"filename\":\"src/main.rs\"}",
+            slice.content() orelse @panic("no content"),
+        );
+    }
+
+    {
+        var slice = try store.at(3) orelse @panic("no storage");
+        defer slice.deinit();
+
+        try std.testing.expectEqualSlices(
+            u8,
+            "{\"timestamp\":\"2024-03-14T00:55:51.506824Z\",\"level\":\"DEBUG\",\"fields\":{\"message\":\"often\"},\"target\":\"sample_builder\",\"filename\":\"src/main.rs\"}",
+            slice.content() orelse @panic("no content"),
+        );
+    }
+
+    {
+        var slice = try store.at(4) orelse @panic("no storage");
+        defer slice.deinit();
+
+        try std.testing.expectEqualSlices(
+            u8,
+            "{\"timestamp\":\"2024-03-14T00:55:51.506836Z\",\"level\":\"TRACE\",\"fields\":{\"message\":\"never\"},\"target\":\"sample_builder\",\"filename\":\"src/main.rs\"}",
+            slice.content() orelse @panic("no content"),
+        );
+    }
+
+    {
+        var slice = try store.at(5) orelse @panic("no storage");
+        defer slice.deinit();
+
+        try std.testing.expectEqualSlices(
+            u8,
+            "{\"timestamp\":\"2024-03-14T00:55:51.506847Z\",\"level\":\"ERROR\",\"fields\":{\"message\":\"is to human\"},\"target\":\"sample_builder\",\"filename\":\"src/main.rs\"}",
+            slice.content() orelse @panic("no content"),
+        );
+    }
+
+    try std.testing.expectEqual(null, try store.at(6));
+}
+
 test "windowing" {
     var windower = Windower{
         .start = 0,
@@ -484,4 +586,40 @@ test "windowing" {
     try std.testing.expectEqual(Windower.Window{ .start = 0x000, .end = 0x1000 }, windower.next().?);
     try std.testing.expectEqual(Windower.Window{ .start = 0x000, .end = 0x0005 }, windower.next().?);
     try std.testing.expectEqual(null, windower.next());
+}
+
+test "filter" {
+    var store = try Store(0x1000).init("sample.log", std.testing.allocator);
+    defer store.deinit();
+
+    const filter = try jq.JQ.init(".level == \"INFO\"", std.testing.allocator);
+    defer filter.deinit();
+
+    try store.build_index();
+    try store.build_filter(filter);
+    try std.testing.expectEqual(2, store.len());
+
+    {
+        var slice = try store.at(0) orelse @panic("no storage");
+        defer slice.deinit();
+
+        try std.testing.expectEqualSlices(
+            u8,
+            "{\"timestamp\":\"2024-03-14T00:55:51.506729Z\",\"level\":\"INFO\",\"fields\":{\"message\":\"hello\"},\"target\":\"sample_builder\",\"filename\":\"src/main.rs\"}",
+            slice.content() orelse @panic("no content"),
+        );
+    }
+
+    {
+        var slice = try store.at(1) orelse @panic("no storage");
+        defer slice.deinit();
+
+        try std.testing.expectEqualSlices(
+            u8,
+            "{\"timestamp\":\"2024-03-14T00:55:51.506797Z\",\"level\":\"INFO\",\"fields\":{\"message\":\"world\"},\"target\":\"sample_builder\",\"filename\":\"src/main.rs\"}",
+            slice.content() orelse @panic("no content"),
+        );
+    }
+
+    try std.testing.expectEqual(null, try store.at(2));
 }

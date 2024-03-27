@@ -71,12 +71,12 @@ pub const JQ = struct {
 
         const kind = c.jv_get_kind(out);
 
-        switch (kind) {
+        return switch (kind) {
             c.JV_KIND_TRUE => true,
             c.JV_KIND_NULL, c.JV_KIND_FALSE => false,
 
             else => false,
-        }
+        };
     }
 };
 

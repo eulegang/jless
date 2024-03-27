@@ -83,6 +83,10 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
         });
 
+        tests.addIncludePath(.{ .path = "/usr/include/" });
+        tests.linkSystemLibrary("jq");
+        tests.linkLibC();
+
         runs.append(b.addRunArtifact(tests)) catch unreachable;
     }
 
