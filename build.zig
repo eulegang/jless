@@ -94,7 +94,7 @@ pub fn build(b: *std.Build) void {
     run_step.dependOn(&run_cmd.step);
 
     var runs = std.ArrayList(*std.Build.Step.Run).init(b.allocator);
-    const tests_files: [7][]const u8 = .{
+    const tests_files: [8][]const u8 = .{
         "src/main.zig",
         "src/index.zig",
         "src/render.zig",
@@ -102,6 +102,7 @@ pub fn build(b: *std.Build) void {
         "src/jsonp.zig",
         "src/jq.zig",
         "src/tree-sitter.zig",
+        "src/highlighter.zig",
     };
 
     for (tests_files) |file| {

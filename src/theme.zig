@@ -71,7 +71,7 @@ pub const Theme = struct {
                 const name = std.mem.trim(u8, part[0..i], " \t");
                 const value = std.mem.trim(u8, part[i + 1 ..], " \t");
 
-                log.info("found theme", .{ .value = value, .name = name });
+                //log.debug("found theme", .{ .value = value, .name = name });
 
                 const color = Color.parse(value) orelse return null;
 
