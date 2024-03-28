@@ -3,6 +3,8 @@ const std = @import("std");
 const render = @import("render.zig");
 const Render = render.Render;
 
+const log = std.log.scoped(.theme);
+
 pub const Theme = struct {
     selected: ColorPair,
     default: ColorPair,
@@ -31,6 +33,8 @@ pub const Theme = struct {
             if (std.mem.indexOfScalar(u8, part, '=')) |i| {
                 const name = std.mem.trim(u8, part[0..i], " \t");
                 const value = std.mem.trim(u8, part[i + 1 ..], " \t");
+
+                log.info("found theme", .{ .value = value, .name = name });
 
                 const color = Color.parse(value) orelse return null;
 
