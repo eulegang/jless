@@ -9,8 +9,10 @@ const Linkage = enum {
         switch (self) {
             .Dynamic => {
                 compile.addIncludePath(.{ .path = "/usr/include/" });
+                compile.addRPath(.{ .path = "/usr/local/lib" });
                 compile.linkSystemLibrary("jq");
                 compile.linkSystemLibrary("tree-sitter");
+                compile.linkSystemLibrary("tree-sitter-json");
                 compile.linkLibC();
             },
 
@@ -92,13 +94,14 @@ pub fn build(b: *std.Build) void {
     run_step.dependOn(&run_cmd.step);
 
     var runs = std.ArrayList(*std.Build.Step.Run).init(b.allocator);
-    const tests_files: [6][]const u8 = .{
+    const tests_files: [7][]const u8 = .{
         "src/main.zig",
         "src/index.zig",
         "src/render.zig",
         "src/theme.zig",
         "src/jsonp.zig",
         "src/jq.zig",
+        "src/tree-sitter.zig",
     };
 
     for (tests_files) |file| {
