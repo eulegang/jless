@@ -11,7 +11,8 @@ pub const Syntax = struct {
         key: Color,
         number: Color,
         punct: Color,
-        keyword: Color,
+        bool: Color,
+        null: Color,
     },
 };
 
@@ -33,11 +34,12 @@ pub const Theme = struct {
 
         .syntax = .{
             .json = .{
-                .string = .{ .true = .{ .red = 0x24, .green = 0x28, .blue = 0x3b } },
+                .string = .{ .true = .{ .red = 0x24, .green = 0xd6, .blue = 0xd6 } },
                 .key = .{ .true = .{ .red = 0x73, .green = 0xd6, .blue = 0xA2 } },
                 .number = .{ .true = .{ .red = 0x73, .green = 0x7A, .blue = 0xd6 } },
                 .punct = .{ .true = .{ .red = 0xd6, .green = 0xd6, .blue = 0xA2 } },
-                .keyword = .{ .true = .{ .red = 0x73, .green = 0xd6, .blue = 0xd6 } },
+                .bool = .{ .true = .{ .red = 0x73, .green = 0xd6, .blue = 0xd6 } },
+                .null = .{ .true = .{ .red = 0x73, .green = 0xd6, .blue = 0xd6 } },
             },
         },
     };

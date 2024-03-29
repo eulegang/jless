@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const BUF_LEN = 512;
+const BUF_LEN = 1024;
 const RESTORE_SCREEN = "\x1b[?47l";
 const SAVE_SCREEN = "\x1b[?47h";
 
@@ -13,7 +13,7 @@ const CURSOR_INVIS = "\x1b[?25l";
 const AUTOWRAP = "\x1b[?7h";
 const NOAUTOWRAP = "\x1b[?7l";
 
-const SPACE: [512]u8 = .{' '} ** 512;
+const SPACE: [BUF_LEN]u8 = .{' '} ** BUF_LEN;
 
 const Err = std.mem.Allocator.Error || std.os.WriteError || error{WindowFetch};
 
@@ -119,6 +119,12 @@ pub const Render = struct {
         const pad = self.window.width - len;
 
         try self.push(content[0..len]);
+        try self.push(SPACE[0..pad]);
+    }
+
+    pub fn push_phantom_pad(self: *Render, content: []const u8) Err!void {
+        const len = @min(content.len, self.window.width);
+        const pad = self.window.width - len;
         try self.push(SPACE[0..pad]);
     }
 

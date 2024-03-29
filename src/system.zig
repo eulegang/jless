@@ -6,6 +6,7 @@ const index = @import("index.zig");
 const Inputs = @import("inputs.zig").Inputs;
 const Term = @import("term.zig").Term;
 const Render = @import("render.zig").Render;
+const Highlighter = @import("highlighter.zig").Highlighter;
 
 const theme = @import("theme.zig");
 
@@ -24,6 +25,7 @@ pub const System = struct {
     render: Render,
     state: State,
     theme: theme.Theme,
+    highlighter: Highlighter,
 
     filter: ?*JQ,
     projection: ?*JQ,
@@ -36,12 +38,15 @@ pub const System = struct {
         const render = try Render.init(1);
         const state = State{ .line = 0, .base = 0 };
 
+        const highlighter = try Highlighter.init(alloc);
+
         return System{
             .inputs = inputs,
             .term = term,
             .store = store,
             .render = render,
             .state = state,
+            .highlighter = highlighter,
             .theme = theme.Theme.DEFAULT,
             .filter = null,
             .projection = null,
@@ -60,6 +65,13 @@ pub const System = struct {
 
         try self.store.build_index();
         try self.store.build_filter(self.filter);
+
+        try self.highlighter.add_lane("[(true) (false)] @bool", self.theme.syntax.json.bool);
+        try self.highlighter.add_lane("(null) @null", self.theme.syntax.json.null);
+        try self.highlighter.add_lane("[\"{\" \":\" \",\" \"[\" \"]\" \"}\"] @punct", self.theme.syntax.json.punct);
+        try self.highlighter.add_lane("(number) @num", self.theme.syntax.json.number);
+        try self.highlighter.add_lane("(string) @str", self.theme.syntax.json.string);
+        try self.highlighter.add_lane("(pair key: (string) @key)", self.theme.syntax.json.key);
 
         try self.paint_full();
     }
@@ -127,9 +139,14 @@ pub const System = struct {
 
             if (self.projection) |proj| {
                 const line = proj.project(buffer[0..n]) catch "error!";
-                try self.render.push_line(line);
+
+                try self.highlighter.load(line);
+                try self.render.render(self.highlighter);
+                try self.render.push_phantom_pad(line);
             } else {
-                try self.render.push_line(buffer[0..n]);
+                try self.highlighter.load(buffer[0..n]);
+                try self.render.render(self.highlighter);
+                try self.render.push_phantom_pad(buffer[0..n]);
             }
 
             try self.render.flush();

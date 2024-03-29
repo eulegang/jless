@@ -27,7 +27,7 @@ const State = struct {
     }
 };
 
-const Highlighter = struct {
+pub const Highlighter = struct {
     lanes: std.ArrayList(Lane),
     states: std.ArrayList(State),
 
