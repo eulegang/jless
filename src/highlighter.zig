@@ -8,18 +8,30 @@ const Render = render.Render;
 
 const Lane = struct {
     query: ts.Query,
-    color: theme.ColorPair,
+    color: theme.Color,
 };
 
 const State = struct {
     next: ?usize,
     cursor: ts.QueryCursor,
+
+    fn forward(self: *@This(), cur: usize) void {
+        while (self.cursor.next()) |node| {
+            const range = node.range();
+
+            if (range.start >= cur) {
+                self.next = range.start;
+                break;
+            }
+        }
+    }
 };
 
 const Highlighter = struct {
     lanes: std.ArrayList(Lane),
     states: std.ArrayList(State),
 
+    color: theme.Color,
     parser: ts.TS,
     tree: ?ts.Tree,
     line: []const u8,
@@ -34,6 +46,7 @@ const Highlighter = struct {
         return Highlighter{
             .lanes = lanes,
             .states = states,
+            .color = .{ .basic = .Default },
 
             .parser = parser,
             .tree = null,
@@ -57,7 +70,7 @@ const Highlighter = struct {
         self.states.deinit();
     }
 
-    pub fn add_lane(self: *@This(), query: []const u8, color: theme.ColorPair) !void {
+    pub fn add_lane(self: *@This(), query: []const u8, color: theme.Color) !void {
         const q = try ts.Query.json(query);
 
         try self.lanes.append(Lane{
@@ -95,25 +108,123 @@ const Highlighter = struct {
     }
 
     pub fn render(self: @This(), r: *Render) !void {
-        try r.fmt("{s}", .{self.line});
+        var cur: usize = 0;
+        var color: theme.Color = .{ .basic = .Default };
+
+        while (cur < self.line.len) {
+            var hare = self.line.len;
+            for (self.lanes.items, self.states.items) |lane, *state| {
+                if (state.next) |n| {
+                    if (n < cur) {
+                        state.forward(cur);
+                    }
+                }
+
+                if (state.next) |n| {
+                    if (n == cur) {
+                        color = lane.color;
+                    }
+
+                    if (n > cur) {
+                        hare = @min(hare, n);
+                    }
+                }
+            }
+
+            try r.render(color);
+            try r.fmt("{s}", .{self.line[cur..hare]});
+            cur = hare;
+        }
+
+        //try r.fmt("{s}", .{self.line});
     }
 };
 
-test "foobar" {
+test "punct" {
     var r = render.test_instance;
 
     var highlighter = try Highlighter.init(std.testing.allocator);
     defer highlighter.deinit();
 
-    try highlighter.add_lane("[(true) (false) (null)]", .{ .fg = .{ .basic = .Magenta }, .bg = .{ .basic = .Black } });
+    try highlighter.add_lane("[\"{\" \":\" \",\" \"[\" \"]\" \"}\"] @punct", .{ .basic = .Yellow });
 
-    const line = "{\"timestamp\":\"2024-03-14T00:55:51.506729Z\",\"level\":\"INFO\",\"fields\":{\"message\":\"hello\"},\"target\":\"sample_builder\",\"filename\":\"src/main.rs\"}";
-    const expected = "{\"timestamp\":\"2024-03-14T00:55:51.506729Z\",\"level\":\"INFO\",\"fields\":{\"message\":\"hello\"},\"target\":\"sample_builder\",\"filename\":\"src/main.rs\"}";
+    const line = "{}";
+    const expected = "\x1b[33m{}";
 
     try highlighter.load(line);
 
-    try r.render(highlighter);
+    try r.render(&highlighter);
 
     try std.testing.expectEqualSlices(u8, expected, r.buffer[0..r.cur]);
 }
 
+test "keywords" {
+    var r = render.test_instance;
+
+    var highlighter = try Highlighter.init(std.testing.allocator);
+    defer highlighter.deinit();
+
+    try highlighter.add_lane("[(true) (false) (null)] @kw", .{ .basic = .Magenta });
+    //try highlighter.add_lane("[\"{\" \":\" \",\" \"[\" \"]\" \"}\"] @punct", .{ .basic = .Yellow });
+
+    var line: []const u8 = "true";
+    var expected: []const u8 = "\x1b[35mtrue";
+
+    try highlighter.load(line);
+    try r.render(highlighter);
+    try std.testing.expectEqualSlices(u8, expected, r.buffer[0..r.cur]);
+
+    r.cur = 0;
+
+    line = "null";
+    expected = "\x1b[35mnull";
+
+    try highlighter.load(line);
+    try r.render(highlighter);
+    try std.testing.expectEqualSlices(u8, expected, r.buffer[0..r.cur]);
+
+    r.cur = 0;
+
+    line = "false";
+    expected = "\x1b[35mfalse";
+
+    try highlighter.load(line);
+    try r.render(highlighter);
+    try std.testing.expectEqualSlices(u8, expected, r.buffer[0..r.cur]);
+}
+
+test "array/keywords" {
+    var r = render.test_instance;
+
+    var highlighter = try Highlighter.init(std.testing.allocator);
+    defer highlighter.deinit();
+
+    try highlighter.add_lane("[(true) (false) (null)] @kw", .{ .basic = .Magenta });
+    try highlighter.add_lane("[\"{\" \":\" \",\" \"[\" \"]\" \"}\"] @punct", .{ .basic = .Yellow });
+
+    const line: []const u8 = "[true, false, null]";
+    const expected: []const u8 = "\x1b[33m[\x1b[35mtrue\x1b[33m, \x1b[35mfalse\x1b[33m, \x1b[35mnull\x1b[33m]";
+
+    try highlighter.load(line);
+    try r.render(highlighter);
+    try std.testing.expectEqualSlices(u8, expected, r.buffer[0..r.cur]);
+}
+
+test "object/keys prio" {
+    var r = render.test_instance;
+
+    var highlighter = try Highlighter.init(std.testing.allocator);
+    defer highlighter.deinit();
+
+    try highlighter.add_lane("[(true) (false) (null)] @kw", .{ .basic = .Magenta });
+    try highlighter.add_lane("[\"{\" \":\" \",\" \"[\" \"]\" \"}\"] @punct", .{ .basic = .Yellow });
+    try highlighter.add_lane("(string) @str", .{ .basic = .Green });
+    try highlighter.add_lane("(pair key: (string) @key)", .{ .basic = .Blue });
+
+    const line: []const u8 = "{\"null\": null, \"str\": \"string\"}";
+    const expected: []const u8 = "\x1b[33m{\x1b[34m\"null\"\x1b[33m: \x1b[35mnull\x1b[33m, \x1b[34m\"str\"\x1b[33m: \x1b[32m\"string\"\x1b[33m}";
+
+    try highlighter.load(line);
+    try r.render(highlighter);
+    try std.testing.expectEqualSlices(u8, expected, r.buffer[0..r.cur]);
+}

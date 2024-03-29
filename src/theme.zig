@@ -7,11 +7,11 @@ const log = std.log.scoped(.theme);
 
 pub const Syntax = struct {
     json: struct {
-        string: ColorPair,
-        key: ColorPair,
-        number: ColorPair,
-        punct: ColorPair,
-        keyword: ColorPair,
+        string: Color,
+        key: Color,
+        number: Color,
+        punct: Color,
+        keyword: Color,
     },
 };
 
@@ -33,26 +33,11 @@ pub const Theme = struct {
 
         .syntax = .{
             .json = .{
-                .string = .{
-                    .fg = .{ .true = .{ .red = 0xd6, .green = 0x7A, .blue = 0xA2 } },
-                    .bg = .{ .true = .{ .red = 0x24, .green = 0x28, .blue = 0x3b } },
-                },
-                .key = .{
-                    .fg = .{ .true = .{ .red = 0x73, .green = 0xd6, .blue = 0xA2 } },
-                    .bg = .{ .true = .{ .red = 0x24, .green = 0x28, .blue = 0x3b } },
-                },
-                .number = .{
-                    .fg = .{ .true = .{ .red = 0x73, .green = 0x7A, .blue = 0xd6 } },
-                    .bg = .{ .true = .{ .red = 0x24, .green = 0x28, .blue = 0x3b } },
-                },
-                .punct = .{
-                    .fg = .{ .true = .{ .red = 0xd6, .green = 0xd6, .blue = 0xA2 } },
-                    .bg = .{ .true = .{ .red = 0x24, .green = 0x28, .blue = 0x3b } },
-                },
-                .keyword = .{
-                    .fg = .{ .true = .{ .red = 0x73, .green = 0xd6, .blue = 0xd6 } },
-                    .bg = .{ .true = .{ .red = 0x24, .green = 0x28, .blue = 0x3b } },
-                },
+                .string = .{ .true = .{ .red = 0x24, .green = 0x28, .blue = 0x3b } },
+                .key = .{ .true = .{ .red = 0x73, .green = 0xd6, .blue = 0xA2 } },
+                .number = .{ .true = .{ .red = 0x73, .green = 0x7A, .blue = 0xd6 } },
+                .punct = .{ .true = .{ .red = 0xd6, .green = 0xd6, .blue = 0xA2 } },
+                .keyword = .{ .true = .{ .red = 0x73, .green = 0xd6, .blue = 0xd6 } },
             },
         },
     };
@@ -206,6 +191,19 @@ pub const Color = union(enum) {
         }
 
         return null;
+    }
+
+    /// Assumes fg
+    pub fn render(self: @This(), r: *Render) !void {
+        switch (self) {
+            .true => |c| {
+                try r.fmt("\x1b[38;2;{};{};{}m", .{ c.red, c.green, c.blue });
+            },
+
+            .basic => |c| {
+                try r.fmt("\x1b[3{c}m", .{@intFromEnum(c)});
+            },
+        }
     }
 };
 
