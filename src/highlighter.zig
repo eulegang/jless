@@ -1,8 +1,8 @@
 const std = @import("std");
 
-const ts = @import("tree-sitter.zig");
+const ts = @import("tree-sitter");
 const theme = @import("theme.zig");
-const render = @import("render.zig");
+const render = @import("render");
 
 const Render = render.Render;
 

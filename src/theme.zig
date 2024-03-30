@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const render = @import("render.zig");
+const render = @import("render");
 const Render = render.Render;
 
 const log = std.log.scoped(.theme);

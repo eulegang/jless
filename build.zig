@@ -59,9 +59,19 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const ts_mod = b.createModule(.{
+        .root_source_file = .{ .path = "src/tree-sitter/main.zig" },
+    });
+
+    const render_mod = b.createModule(.{
+        .root_source_file = .{ .path = "src/render/main.zig" },
+    });
+
     //exe.linkLibC();
     exe.root_module.addImport("zig-cli", cli.module("zig-cli"));
     exe.root_module.addImport("mirror", mirror.module("mirror"));
+    exe.root_module.addImport("tree-sitter", ts_mod);
+    exe.root_module.addImport("render", render_mod);
 
     linkage.link(exe);
 
@@ -97,12 +107,12 @@ pub fn build(b: *std.Build) void {
     const tests_files: [8][]const u8 = .{
         "src/main.zig",
         "src/index.zig",
-        "src/render.zig",
         "src/theme.zig",
         "src/jsonp.zig",
         "src/jq.zig",
-        "src/tree-sitter.zig",
         "src/highlighter.zig",
+        "src/tree-sitter/tests.zig",
+        "src/render/tests.zig",
     };
 
     for (tests_files) |file| {
@@ -113,6 +123,9 @@ pub fn build(b: *std.Build) void {
         });
 
         linkage.link(tests);
+
+        tests.root_module.addImport("tree-sitter", ts_mod);
+        tests.root_module.addImport("render", render_mod);
 
         runs.append(b.addRunArtifact(tests)) catch unreachable;
     }
