@@ -1,6 +1,6 @@
 const std = @import("std");
 const cli = @import("zig-cli");
-const JQ = @import("jq.zig").JQ;
+const JQ = @import("jq").JQ;
 
 const System = @import("system.zig").System;
 const index = @import("index.zig");

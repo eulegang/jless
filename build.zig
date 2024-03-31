@@ -22,19 +22,8 @@ const Linkage = enum {
     }
 };
 
-// Although this function looks imperative, note that its job is to
-// declaratively construct a build graph that will be executed by an external
-// runner.
 pub fn build(b: *std.Build) void {
-    // Standard target options allows the person running `zig build` to choose
-    // what target to build for. Here we do not override the defaults, which
-    // means any target is allowed, and the default is native. Other options
-    // for restricting supported target set are available.
     const target = b.standardTargetOptions(.{});
-
-    // Standard optimization options allow the person running `zig build` to select
-    // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall. Here we do not
-    // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
     //const static = b.option(bool, "static", "build a statically linked executable") orelse false;
@@ -61,17 +50,27 @@ pub fn build(b: *std.Build) void {
 
     const ts_mod = b.createModule(.{
         .root_source_file = .{ .path = "src/tree-sitter/main.zig" },
+        .target = target,
+        .optimize = optimize,
     });
 
     const render_mod = b.createModule(.{
         .root_source_file = .{ .path = "src/render/main.zig" },
+        .target = target,
+        .optimize = optimize,
     });
 
-    //exe.linkLibC();
+    const jq_mod = b.createModule(.{
+        .root_source_file = .{ .path = "src/jq/main.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
+
     exe.root_module.addImport("zig-cli", cli.module("zig-cli"));
     exe.root_module.addImport("mirror", mirror.module("mirror"));
     exe.root_module.addImport("tree-sitter", ts_mod);
     exe.root_module.addImport("render", render_mod);
+    exe.root_module.addImport("jq", jq_mod);
 
     linkage.link(exe);
 
@@ -109,8 +108,9 @@ pub fn build(b: *std.Build) void {
         "src/index.zig",
         "src/theme.zig",
         "src/jsonp.zig",
-        "src/jq.zig",
         "src/highlighter.zig",
+
+        "src/jq/main.zig",
         "src/tree-sitter/tests.zig",
         "src/render/tests.zig",
     };
@@ -126,6 +126,7 @@ pub fn build(b: *std.Build) void {
 
         tests.root_module.addImport("tree-sitter", ts_mod);
         tests.root_module.addImport("render", render_mod);
+        tests.root_module.addImport("jq", jq_mod);
 
         runs.append(b.addRunArtifact(tests)) catch unreachable;
     }

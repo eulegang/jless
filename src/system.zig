@@ -1,11 +1,11 @@
 const std = @import("std");
-const JQ = @import("jq.zig").JQ;
+const JQ = @import("jq").JQ;
 
 const index = @import("index.zig");
 
 const Inputs = @import("inputs.zig").Inputs;
-const Term = @import("term.zig").Term;
 const Render = @import("render").Render;
+const Term = @import("render").Term;
 const Highlighter = @import("highlighter.zig").Highlighter;
 
 const theme = @import("theme.zig");

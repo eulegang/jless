@@ -1,17 +1,9 @@
 const std = @import("std");
+const ops = @import("ops.zig");
+
+pub usingnamespace @import("term.zig");
 
 const BUF_LEN = 1024;
-const RESTORE_SCREEN = "\x1b[?47l";
-const SAVE_SCREEN = "\x1b[?47h";
-
-const ENABLE_ALT = "\x1b[?1049h";
-const DISABLE_ALT = "\x1b[?1049h";
-
-const CURSOR_VIS = "\x1b[?25h";
-const CURSOR_INVIS = "\x1b[?25l";
-
-const AUTOWRAP = "\x1b[?7h";
-const NOAUTOWRAP = "\x1b[?7l";
 
 const SPACE: [BUF_LEN]u8 = .{' '} ** BUF_LEN;
 
@@ -19,7 +11,7 @@ const Err = std.mem.Allocator.Error || std.os.WriteError || error{WindowFetch};
 
 pub const test_instance = switch (@import("builtin").is_test) {
     true => Render{
-        .fd = 1,
+        .fd = 2,
         .cur = 0,
         .buffer = undefined,
         .window = Window{
@@ -64,10 +56,10 @@ pub const Render = struct {
             .window = window,
         };
 
-        try self.push(SAVE_SCREEN);
-        try self.push(ENABLE_ALT);
-        try self.push(CURSOR_INVIS);
-        try self.push(NOAUTOWRAP);
+        try self.push(ops.SAVE_SCREEN);
+        try self.push(ops.ENABLE_ALT);
+        try self.push(ops.CURSOR_INVIS);
+        try self.push(ops.NOAUTOWRAP);
         try self.clear_screen();
         try self.flush();
 
@@ -77,10 +69,10 @@ pub const Render = struct {
     pub fn deinit(self: *Render) void {
         self.cur = 0;
 
-        self.push(DISABLE_ALT) catch return;
-        self.push(RESTORE_SCREEN) catch return;
-        self.push(CURSOR_VIS) catch return;
-        self.push(AUTOWRAP) catch return;
+        self.push(ops.DISABLE_ALT) catch return;
+        self.push(ops.RESTORE_SCREEN) catch return;
+        self.push(ops.CURSOR_VIS) catch return;
+        self.push(ops.AUTOWRAP) catch return;
         self.flush() catch return;
     }
 

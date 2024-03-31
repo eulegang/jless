@@ -1,6 +1,6 @@
 const std = @import("std");
 const jsonp = @import("jsonp.zig");
-const jq = @import("jq.zig");
+const jq = @import("jq");
 
 const Error = std.os.MMapError || std.os.OpenError || std.mem.Allocator.Error || error{OutOfCachePages};
 
