@@ -31,7 +31,7 @@ pub const System = struct {
     projection: ?*JQ,
 
     pub fn init(file: []const u8, alloc: std.mem.Allocator) !System {
-        const inputs = try Inputs.init(file);
+        const inputs = try Inputs.init();
         const term = Term.init();
 
         const store = try index.Store(0x1000).init(file, alloc);
@@ -54,7 +54,7 @@ pub const System = struct {
     }
 
     pub fn close(self: *@This()) void {
-        self.inputs.close();
+        self.inputs.deinit();
         self.store.deinit();
         self.render.deinit();
         self.term.deinit();
@@ -77,44 +77,37 @@ pub const System = struct {
     }
 
     pub fn tick(self: *@This()) !bool {
-        const event = try self.inputs.event();
-        switch (event) {
-            .line => {},
+        const input = try self.inputs.event();
+        log.debug("pretick", .{ .state = self.state, .window = self.render.window });
+        const page: isize = self.render.window.height;
+        switch (input) {
+            .Quit => return false,
+            .Up => try self.move_delta(-1),
+            .Down => try self.move_delta(1),
 
-            .input => |input| {
-                log.debug("pretick", .{ .state = self.state, .window = self.render.window });
-                const page: isize = self.render.window.height;
-                switch (input) {
-                    .Quit => return false,
-                    .Up => try self.move_delta(-1),
-                    .Down => try self.move_delta(1),
+            .HalfPageDown => try self.move_delta(@divTrunc(page, 2)),
+            .HalfPageUp => try self.move_delta(-@divTrunc(page, 2)),
 
-                    .HalfPageDown => try self.move_delta(@divTrunc(page, 2)),
-                    .HalfPageUp => try self.move_delta(-@divTrunc(page, 2)),
+            .FullPageDown => try self.move_delta(page),
+            .FullPageUp => try self.move_delta(-page),
 
-                    .FullPageDown => try self.move_delta(page),
-                    .FullPageUp => try self.move_delta(-page),
-
-                    .Begin => {
-                        self.state = .{ .line = 0, .base = 0 };
-                        try self.paint_full();
-                    },
-
-                    .End => {
-                        var delta: isize = @intCast(self.store.len() -| 1);
-                        delta -|= @intCast(self.state.line);
-                        delta -|= @intCast(self.state.base);
-                        try self.move_delta(delta);
-                        try self.paint_full();
-                    },
-
-                    else => log.warn("unhandled input {}", .{input}),
-                }
-
-                log.debug("posttick", .{ .state = self.state, .window = self.render.window });
+            .Begin => {
+                self.state = .{ .line = 0, .base = 0 };
+                try self.paint_full();
             },
+
+            .End => {
+                var delta: isize = @intCast(self.store.len() -| 1);
+                delta -|= @intCast(self.state.line);
+                delta -|= @intCast(self.state.base);
+                try self.move_delta(delta);
+                try self.paint_full();
+            },
+
+            else => log.warn("unhandled input {}", .{input}),
         }
 
+        log.debug("posttick", .{ .state = self.state, .window = self.render.window });
         return true;
     }
 
