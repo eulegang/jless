@@ -71,37 +71,18 @@ pub const System = struct {
 
     pub fn tick(self: *@This()) !bool {
         const input = try self.inputs.event();
-        log.debug("pretick", .{ .window = self.render.window });
-        const page: isize = self.render.window.height;
+
         switch (input) {
-            .Quit => return false,
-            .Up => try self.list_view.move_delta(-1),
-            .Down => try self.list_view.move_delta(1),
+            .list => |li| {
+                if (li == .Quit) {
+                    return false;
+                }
 
-            .HalfPageDown => try self.list_view.move_delta(@divTrunc(page, 2)),
-            .HalfPageUp => try self.list_view.move_delta(-@divTrunc(page, 2)),
-
-            .FullPageDown => try self.list_view.move_delta(page),
-            .FullPageUp => try self.list_view.move_delta(-page),
-
-            .Begin => {
-                self.list_view.line = 0;
-                self.list_view.base = 0;
+                try self.list_view.handle(li);
+                try self.list_view.paint();
             },
-
-            .End => {
-                var delta: isize = @intCast(self.store.len() -| 1);
-                delta -|= @intCast(self.list_view.line);
-                delta -|= @intCast(self.list_view.base);
-                try self.list_view.move_delta(delta);
-            },
-
-            else => log.warn("unhandled input {}", .{input}),
         }
 
-        try self.list_view.paint();
-
-        log.debug("posttick", .{ .window = self.render.window });
         return true;
     }
 };

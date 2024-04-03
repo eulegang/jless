@@ -5,7 +5,15 @@ const Mirror = @import("mirror").Mirror;
 const log = std.log.scoped(.input);
 const fd_t = std.os.fd_t;
 
-pub const Input = enum {
+pub const Input = union(InputMode) {
+    list: ListInput,
+};
+
+pub const InputMode = enum {
+    list,
+};
+
+pub const ListInput = enum {
     Up,
     Down,
 
@@ -18,9 +26,38 @@ pub const Input = enum {
     FullPageUp,
     FullPageDown,
 
+    OpenFilter,
+    OpenProjection,
+
     Select,
     Quit,
     Escape,
+
+    fn process(buf: []const u8) ?@This() {
+        if (buf.len == 1) {
+            switch (buf[0]) {
+                '\x1b' => return .Escape,
+                '\n' => return .Select,
+
+                'q' => return .Quit,
+                'j' => return .Down,
+                'k' => return .Up,
+
+                'd' => return .HalfPageDown,
+                'u' => return .HalfPageUp,
+
+                'f' => return .FullPageDown,
+                'b' => return .FullPageUp,
+
+                'g' => return .Begin,
+                'G' => return .End,
+
+                else => {},
+            }
+        }
+
+        return null;
+    }
 };
 
 pub const InputsError = error{
@@ -31,10 +68,12 @@ pub const Inputs = struct {
     const Self = @This();
 
     user: fd_t,
+    mode: InputMode,
 
     pub fn init() !Self {
         return Inputs{
             .user = 0,
+            .mode = InputMode.list,
         };
     }
 
@@ -49,37 +88,12 @@ pub const Inputs = struct {
 
             if (len == 0) continue;
 
-            const ch = buf[0];
-
-            var input: ?Input = null;
-
-            if (len == 1) {
-                switch (ch) {
-                    '\x1b' => input = .Escape,
-                    '\n' => input = .Select,
-
-                    'q' => input = .Quit,
-                    'j' => input = .Down,
-                    'k' => input = .Up,
-
-                    'd' => input = .HalfPageDown,
-                    'u' => input = .HalfPageUp,
-
-                    'f' => input = .FullPageDown,
-                    'b' => input = .FullPageUp,
-
-                    'g' => input = .Begin,
-                    'G' => input = .End,
-
-                    else => {
-                        log.debug("unhandled key {x}", .{ch});
-                    },
-                }
-            }
-
-            if (input) |i| {
-                log.debug("event {}", .{i});
-                return i;
+            switch (self.mode) {
+                .list => {
+                    if (ListInput.process(&buf)) |input| {
+                        return .{ .list = input };
+                    }
+                },
             }
         }
     }

@@ -4,6 +4,7 @@ const Render = @import("render").Render;
 const Highlighter = @import("highlighter.zig").Highlighter;
 const Theme = @import("theme.zig").Theme;
 const system = @import("system.zig");
+const inputs = @import("inputs.zig");
 
 const index = @import("index.zig");
 
@@ -21,6 +22,36 @@ pub const ListView = struct {
             .line = 0,
             .base = 0,
         };
+    }
+
+    pub fn handle(self: *@This(), input: inputs.ListInput) !void {
+        const page: isize = self.sys.render.window.height;
+
+        switch (input) {
+            .Quit => {},
+            .Up => try self.move_delta(-1),
+            .Down => try self.move_delta(1),
+
+            .HalfPageDown => try self.move_delta(@divTrunc(page, 2)),
+            .HalfPageUp => try self.move_delta(-@divTrunc(page, 2)),
+
+            .FullPageDown => try self.move_delta(page),
+            .FullPageUp => try self.move_delta(-page),
+
+            .Begin => {
+                self.line = 0;
+                self.base = 0;
+            },
+
+            .End => {
+                var delta: isize = @intCast(self.sys.store.len() -| 1);
+                delta -|= @intCast(self.line);
+                delta -|= @intCast(self.base);
+                try self.move_delta(delta);
+            },
+
+            else => log.warn("unhandled input {}", .{input}),
+        }
     }
 
     pub fn paint(self: *@This()) !void {
