@@ -8,15 +8,32 @@ const Linkage = enum {
     fn link(self: @This(), compile: *std.Build.Step.Compile) void {
         switch (self) {
             .Dynamic => {
-                compile.addIncludePath(.{ .path = "/usr/include/" });
+                compile.addIncludePath(.{ .path = "/usr/local/include/" });
                 compile.addRPath(.{ .path = "/usr/local/lib" });
+
                 compile.linkSystemLibrary("jq");
                 compile.linkSystemLibrary("tree-sitter");
                 compile.linkSystemLibrary("tree-sitter-json");
+
                 compile.linkLibC();
             },
 
-            .Static => @panic("static is currently not supported"),
+            .Static => {
+                //@panic("static is currently not supported")
+
+                compile.addIncludePath(.{ .path = "/usr/local/include/" });
+                compile.addRPath(.{ .path = "/usr/local/lib" });
+
+                compile.addObjectFile(.{ .path = "/usr/local/lib/libjq.a" });
+                compile.addObjectFile(.{ .path = "/usr/local/lib/libonig.a" });
+                compile.addObjectFile(.{ .path = "/usr/local/lib/libtree-sitter.a" });
+                compile.addObjectFile(.{ .path = "/usr/local/lib/libtree-sitter-json.a" });
+
+                //compile.linkLibrary("jq");
+
+                compile.linkLibC();
+            },
+
             .Vendered => @panic("vendered is currently not supported"),
         }
     }
@@ -26,10 +43,14 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    //const static = b.option(bool, "static", "build a statically linked executable") orelse false;
+    const static = b.option(bool, "static", "build a statically linked executable") orelse false;
     //const vendored = b.option(bool, "vendored", "build a statically linked with default dependency sources ") orelse false;
 
     var linkage = Linkage.Dynamic;
+
+    if (static) {
+        linkage = Linkage.Static;
+    }
 
     const exe = b.addExecutable(.{
         .name = "jless",
