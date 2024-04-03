@@ -10,12 +10,9 @@ const Highlighter = @import("highlighter.zig").Highlighter;
 
 const theme = @import("theme.zig");
 
-const log = std.log.scoped(.system);
+const view = @import("view.zig");
 
-const State = struct {
-    line: usize,
-    base: usize,
-};
+const log = std.log.scoped(.system);
 
 pub const System = struct {
     inputs: Inputs,
@@ -23,34 +20,30 @@ pub const System = struct {
 
     store: *index.Store(0x1000),
     render: Render,
-    state: State,
     theme: theme.Theme,
     highlighter: Highlighter,
+    list_view: view.ListView,
 
     filter: ?*JQ,
     projection: ?*JQ,
 
-    pub fn init(file: []const u8, alloc: std.mem.Allocator) !System {
-        const inputs = try Inputs.init();
-        const term = Term.init();
+    pub fn init(file: []const u8, alloc: std.mem.Allocator) !*System {
+        var self = try alloc.create(System);
+        errdefer alloc.destroy(self);
 
-        const store = try index.Store(0x1000).init(file, alloc);
-        const render = try Render.init(1);
-        const state = State{ .line = 0, .base = 0 };
+        self.inputs = try Inputs.init();
+        self.term = Term.init();
 
-        const highlighter = try Highlighter.init(alloc);
+        self.store = try index.Store(0x1000).init(file, alloc);
+        self.render = try Render.init(1);
 
-        return System{
-            .inputs = inputs,
-            .term = term,
-            .store = store,
-            .render = render,
-            .state = state,
-            .highlighter = highlighter,
-            .theme = theme.Theme.DEFAULT,
-            .filter = null,
-            .projection = null,
-        };
+        self.highlighter = try Highlighter.init(alloc);
+        self.theme = theme.Theme.DEFAULT;
+        self.filter = null;
+        self.projection = null;
+
+        self.list_view = try view.ListView.init(self);
+        return self;
     }
 
     pub fn close(self: *@This()) void {
@@ -73,126 +66,42 @@ pub const System = struct {
         try self.highlighter.add_lane("(string) @str", self.theme.syntax.json.string);
         try self.highlighter.add_lane("(pair key: (string) @key)", self.theme.syntax.json.key);
 
-        try self.paint_full();
+        try self.list_view.paint();
     }
 
     pub fn tick(self: *@This()) !bool {
         const input = try self.inputs.event();
-        log.debug("pretick", .{ .state = self.state, .window = self.render.window });
+        log.debug("pretick", .{ .window = self.render.window });
         const page: isize = self.render.window.height;
         switch (input) {
             .Quit => return false,
-            .Up => try self.move_delta(-1),
-            .Down => try self.move_delta(1),
+            .Up => try self.list_view.move_delta(-1),
+            .Down => try self.list_view.move_delta(1),
 
-            .HalfPageDown => try self.move_delta(@divTrunc(page, 2)),
-            .HalfPageUp => try self.move_delta(-@divTrunc(page, 2)),
+            .HalfPageDown => try self.list_view.move_delta(@divTrunc(page, 2)),
+            .HalfPageUp => try self.list_view.move_delta(-@divTrunc(page, 2)),
 
-            .FullPageDown => try self.move_delta(page),
-            .FullPageUp => try self.move_delta(-page),
+            .FullPageDown => try self.list_view.move_delta(page),
+            .FullPageUp => try self.list_view.move_delta(-page),
 
             .Begin => {
-                self.state = .{ .line = 0, .base = 0 };
-                try self.paint_full();
+                self.list_view.line = 0;
+                self.list_view.base = 0;
             },
 
             .End => {
                 var delta: isize = @intCast(self.store.len() -| 1);
-                delta -|= @intCast(self.state.line);
-                delta -|= @intCast(self.state.base);
-                try self.move_delta(delta);
-                try self.paint_full();
+                delta -|= @intCast(self.list_view.line);
+                delta -|= @intCast(self.list_view.base);
+                try self.list_view.move_delta(delta);
             },
 
             else => log.warn("unhandled input {}", .{input}),
         }
 
-        log.debug("posttick", .{ .state = self.state, .window = self.render.window });
+        try self.list_view.paint();
+
+        log.debug("posttick", .{ .window = self.render.window });
         return true;
-    }
-
-    pub fn paint_full(self: *@This()) !void {
-        const top = @min(self.store.len(), self.state.base + self.render.window.height);
-
-        var buffer: [4096]u8 = undefined;
-        var n: usize = 0;
-        for (0.., self.state.base..top) |i, store_pos| {
-            {
-                var fslice = try self.store.at(store_pos) orelse break;
-                defer fslice.deinit();
-                n = fslice.read(&buffer);
-            }
-
-            try self.render.move_cursor(@intCast(i), 0);
-            if (i == self.state.line) {
-                try self.render.render(self.theme.selected);
-            } else {
-                try self.render.render(self.theme.default);
-            }
-
-            if (self.projection) |proj| {
-                const line = proj.project(buffer[0..n]) catch "error!";
-
-                try self.highlighter.load(line);
-                try self.render.render(self.highlighter);
-                try self.render.push_phantom_pad(line);
-            } else {
-                try self.highlighter.load(buffer[0..n]);
-                try self.render.render(self.highlighter);
-                try self.render.push_phantom_pad(buffer[0..n]);
-            }
-
-            try self.render.flush();
-        }
-
-        try self.render.render(self.theme.default);
-
-        if (top < self.render.window.height) {
-            for (top..self.render.window.height) |i| {
-                try self.render.move_cursor(@intCast(i), 0);
-                try self.render.push_line("");
-                try self.render.flush();
-            }
-        }
-    }
-
-    fn move_delta(self: *@This(), delta: isize) !void {
-        const d: usize = @intCast(@abs(delta));
-        if (delta < 0) {
-            if (d > self.state.line) {
-                self.state.base -|= d -| self.state.line;
-                self.state.line = 0;
-            } else {
-                self.state.line -= d;
-            }
-        } else {
-            self.state.line += d;
-
-            if (self.state.line >= self.render.window.height - 1) {
-                const diff = 1 + self.state.line -| self.render.window.height;
-
-                self.state.base += diff;
-                self.state.line -= diff;
-            }
-
-            if (self.state.line + self.state.base >= self.store.len()) {
-                const diff = (self.state.line + self.state.base) - (self.store.len() - 1);
-                log.debug("overflow check", .{
-                    .store = self.store.len(),
-                    .diff = diff,
-                    .line = self.state.line,
-                    .base = self.state.base,
-                });
-
-                if (diff > self.state.base) {
-                    self.state.line -= diff - self.state.base;
-                    self.state.base = 0;
-                } else {
-                    self.state.base -= diff;
-                }
-            }
-        }
-
-        try self.paint_full();
     }
 };
