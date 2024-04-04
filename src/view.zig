@@ -146,14 +146,79 @@ pub const FilterView = struct {
     sys: *system.System,
     filter: bool,
 
+    buffer: []u8,
+
     pub fn init(sys: *system.System) !FilterView {
+        const buffer = try sys.alloc.alloc(u8, 4096);
         return FilterView{
             .sys = sys,
             .filter = true,
+            .buffer = buffer,
         };
     }
 
+    pub fn deinit(self: @This()) void {
+        self.sys.alloc.free(self.buffer);
+    }
+
     pub fn paint(self: *@This()) !void {
+        try self.draw_box();
+    }
+
+    fn draw_box(self: *@This()) !void {
+        var render = self.sys.render;
+
+        const corners = [4][3]u8{
+            .{ 0xe2, 0x95, 0xad },
+            .{ 0xe2, 0x95, 0xae },
+            .{ 0xe2, 0x95, 0xb0 },
+            .{ 0xe2, 0x95, 0xaf },
+        };
+
+        const pipes = [2][3]u8{
+            .{ 0xe2, 0x94, 0x80 },
+            .{ 0xe2, 0x94, 0x82 },
+        };
+
+        const x: u16 = render.window.width / 4;
+        const y: u16 = render.window.height / 4;
+
+        const width = (render.window.width / 2) -| 2;
+        const height: u16 = (3 -| 2);
+
+        try render.move_cursor(y, x);
+
+        try render.raw(&corners[0]);
+        for (0..width) |i| {
+            _ = i;
+            try render.raw(&pipes[0]);
+        }
+
+        try render.raw(&corners[1]);
+        try render.flush();
+
+        for (0..height) |h| {
+            try render.move_cursor(@intCast(y + h + 1), x);
+            try render.raw(&pipes[1]);
+            try render.move_cursor(@intCast(y + h + 1), x + width + 1);
+            try render.raw(&pipes[1]);
+        }
+
+        try render.flush();
+
+        try render.move_cursor(@intCast(y + height + 1), x);
+        try render.raw(&corners[2]);
+        for (0..width) |i| {
+            _ = i;
+            try render.raw(&pipes[0]);
+        }
+
+        try render.raw(&corners[3]);
+        try render.flush();
+    }
+
+    pub fn handle(self: *@This(), input: inputs.InsertInput) !void {
         _ = self;
+        _ = input;
     }
 };

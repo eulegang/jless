@@ -48,6 +48,7 @@ pub const System = struct {
         self.projection = null;
 
         self.list_view = try view.ListView.init(self);
+        self.filter_view = try view.FilterView.init(self);
         return self;
     }
 
@@ -106,6 +107,8 @@ pub const System = struct {
                 if (insert == .Cancel) {
                     self.inputs.mode = .list;
                     try self.list_view.paint();
+                } else {
+                    try self.filter_view.handle(insert);
                 }
             },
         }

@@ -56,10 +56,10 @@ pub const Render = struct {
             .window = window,
         };
 
-        try self.push(ops.SAVE_SCREEN);
-        try self.push(ops.ENABLE_ALT);
-        try self.push(ops.CURSOR_INVIS);
-        try self.push(ops.NOAUTOWRAP);
+        try self.raw(ops.SAVE_SCREEN);
+        try self.raw(ops.ENABLE_ALT);
+        try self.raw(ops.CURSOR_INVIS);
+        try self.raw(ops.NOAUTOWRAP);
         try self.clear_screen();
         try self.flush();
 
@@ -69,10 +69,10 @@ pub const Render = struct {
     pub fn deinit(self: *Render) void {
         self.cur = 0;
 
-        self.push(ops.DISABLE_ALT) catch return;
-        self.push(ops.RESTORE_SCREEN) catch return;
-        self.push(ops.CURSOR_VIS) catch return;
-        self.push(ops.AUTOWRAP) catch return;
+        self.raw(ops.DISABLE_ALT) catch return;
+        self.raw(ops.RESTORE_SCREEN) catch return;
+        self.raw(ops.CURSOR_VIS) catch return;
+        self.raw(ops.AUTOWRAP) catch return;
         self.flush() catch return;
     }
 
@@ -97,7 +97,7 @@ pub const Render = struct {
         self.cur = 0;
     }
 
-    fn push(self: *Render, cmd: []const u8) Err!void {
+    pub fn raw(self: *Render, cmd: []const u8) Err!void {
         if (cmd.len + self.cur >= BUF_LEN) {
             return std.mem.Allocator.Error.OutOfMemory;
         }
@@ -110,14 +110,14 @@ pub const Render = struct {
         const len = @min(content.len, self.window.width);
         const pad = self.window.width - len;
 
-        try self.push(content[0..len]);
-        try self.push(SPACE[0..pad]);
+        try self.raw(content[0..len]);
+        try self.raw(SPACE[0..pad]);
     }
 
     pub fn push_phantom_pad(self: *Render, content: []const u8) Err!void {
         const len = @min(content.len, self.window.width);
         const pad = self.window.width - len;
-        try self.push(SPACE[0..pad]);
+        try self.raw(SPACE[0..pad]);
     }
 
     pub fn render(self: *Render, op: anytype) Err!void {
@@ -125,7 +125,7 @@ pub const Render = struct {
     }
 
     pub fn clear_screen(self: *Render) Err!void {
-        try self.push("\x1b[2J");
+        try self.raw("\x1b[2J");
     }
 
     pub fn move_cursor(self: *Render, line: u16, col: u16) Err!void {
