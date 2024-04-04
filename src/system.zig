@@ -25,12 +25,16 @@ pub const System = struct {
     list_view: view.ListView,
     filter_view: view.FilterView,
 
+    alloc: std.mem.Allocator,
+
     filter: ?*JQ,
     projection: ?*JQ,
 
     pub fn init(file: []const u8, alloc: std.mem.Allocator) !*System {
         var self = try alloc.create(System);
         errdefer alloc.destroy(self);
+
+        self.alloc = alloc;
 
         self.inputs = try Inputs.init();
         self.term = Term.init();
@@ -52,6 +56,8 @@ pub const System = struct {
         self.store.deinit();
         self.render.deinit();
         self.term.deinit();
+
+        self.alloc.destroy(self);
     }
 
     pub fn setup(self: *@This()) !void {
