@@ -141,3 +141,19 @@ pub const ListView = struct {
         }
     }
 };
+
+pub const FilterView = struct {
+    sys: *system.System,
+    filter: bool,
+
+    pub fn init(sys: *system.System) !FilterView {
+        return FilterView{
+            .sys = sys,
+            .filter = true,
+        };
+    }
+
+    pub fn paint(self: *@This()) !void {
+        _ = self;
+    }
+};

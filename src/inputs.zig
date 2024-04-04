@@ -7,10 +7,12 @@ const fd_t = std.os.fd_t;
 
 pub const Input = union(InputMode) {
     list: ListInput,
+    insert: InsertInput,
 };
 
 pub const InputMode = enum {
     list,
+    insert,
 };
 
 pub const ListInput = enum {
@@ -49,10 +51,34 @@ pub const ListInput = enum {
                 'f' => return .FullPageDown,
                 'b' => return .FullPageUp,
 
+                'p' => return .OpenProjection,
+                'o' => return .OpenFilter,
+
                 'g' => return .Begin,
                 'G' => return .End,
 
                 else => {},
+            }
+        }
+
+        return null;
+    }
+};
+
+pub const InsertInput = union(enum) {
+    Escape: void,
+    Cancel: void,
+    Raw: u8,
+
+    fn process(buf: []const u8) ?@This() {
+        if (buf.len == 1) {
+            switch (buf[0]) {
+                '\x1b' => return .Escape,
+                3 => return .Cancel,
+
+                else => {
+                    return .{ .Raw = buf[0] };
+                },
             }
         }
 
@@ -88,10 +114,17 @@ pub const Inputs = struct {
 
             if (len == 0) continue;
 
+            log.debug("input", .{ .mode = self.mode, .len = len, .buf = buf[0..len] });
+
             switch (self.mode) {
                 .list => {
-                    if (ListInput.process(&buf)) |input| {
+                    if (ListInput.process(buf[0..len])) |input| {
                         return .{ .list = input };
+                    }
+                },
+                .insert => {
+                    if (InsertInput.process(buf[0..len])) |input| {
+                        return .{ .insert = input };
                     }
                 },
             }

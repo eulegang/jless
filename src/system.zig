@@ -23,6 +23,7 @@ pub const System = struct {
     theme: theme.Theme,
     highlighter: Highlighter,
     list_view: view.ListView,
+    filter_view: view.FilterView,
 
     filter: ?*JQ,
     projection: ?*JQ,
@@ -78,11 +79,42 @@ pub const System = struct {
                     return false;
                 }
 
-                try self.list_view.handle(li);
-                try self.list_view.paint();
+                if (li == .OpenProjection or li == .OpenFilter) {
+                    try self.blank_out();
+
+                    self.filter_view.filter = li == .OpenFilter;
+
+                    self.inputs.mode = .insert;
+                    try self.filter_view.paint();
+                } else {
+                    try self.list_view.handle(li);
+                    try self.list_view.paint();
+                }
+            },
+
+            .insert => |insert| {
+                if (insert == .Escape) {
+                    return false; // not really but for now
+                }
+
+                if (insert == .Cancel) {
+                    self.inputs.mode = .list;
+                    try self.list_view.paint();
+                }
             },
         }
 
         return true;
+    }
+
+    pub fn blank_out(self: *@This()) !void {
+        var render = self.render;
+        try render.render(self.theme.default);
+
+        for (0..render.window.height) |i| {
+            try render.move_cursor(@intCast(i), 0);
+            try render.push_line("");
+            try render.flush();
+        }
     }
 };
