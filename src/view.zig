@@ -147,6 +147,7 @@ pub const FilterView = struct {
     filter: bool,
 
     buffer: []u8,
+    cur: usize,
 
     pub fn init(sys: *system.System) !FilterView {
         const buffer = try sys.alloc.alloc(u8, 4096);
@@ -154,6 +155,7 @@ pub const FilterView = struct {
             .sys = sys,
             .filter = true,
             .buffer = buffer,
+            .cur = 0,
         };
     }
 
@@ -163,6 +165,20 @@ pub const FilterView = struct {
 
     pub fn paint(self: *@This()) !void {
         try self.draw_box();
+        try self.draw_content();
+    }
+
+    fn draw_content(self: *@This()) !void {
+        var render = self.sys.render;
+
+        const x: u16 = render.window.width / 4;
+        const y: u16 = render.window.height / 4;
+
+        const width = (render.window.width / 2) -| 2;
+
+        try render.move_cursor(y + 1, x + 3);
+        try render.fmt("{s}", .{self.buffer[0..@min(width, self.cur)]});
+        try render.flush();
     }
 
     fn draw_box(self: *@This()) !void {

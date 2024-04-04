@@ -91,6 +91,26 @@ pub const System = struct {
 
                     self.filter_view.filter = li == .OpenFilter;
 
+                    if (self.filter_view.filter) {
+                        if (self.filter) |f| {
+                            const len = f.prog.len;
+                            @memcpy(self.filter_view.buffer[0..len], f.prog);
+                            self.filter_view.cur = len;
+                        } else {
+                            self.filter_view.buffer[0] = '.';
+                            self.filter_view.cur = 1;
+                        }
+                    } else {
+                        if (self.projection) |p| {
+                            const len = p.prog.len;
+                            @memcpy(self.filter_view.buffer[0..len], p.prog);
+                            self.filter_view.cur = len;
+                        } else {
+                            self.filter_view.buffer[0] = '.';
+                            self.filter_view.cur = 1;
+                        }
+                    }
+
                     self.inputs.mode = .insert;
                     try self.filter_view.paint();
                 } else {
