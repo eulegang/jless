@@ -164,24 +164,21 @@ pub const FilterView = struct {
     }
 
     pub fn paint(self: *@This()) !void {
-        try self.draw_box();
-        try self.draw_content();
+        const bound = self.calc_bound();
+        try self.draw_box(bound);
+        try self.draw_content(bound);
     }
 
-    fn draw_content(self: *@This()) !void {
+    fn draw_content(self: *@This(), b: Bound) !void {
         var render = self.sys.render;
 
-        const x: u16 = render.window.width / 4;
-        const y: u16 = render.window.height / 4;
-
-        const width = (render.window.width / 2) -| 2;
-
-        try render.move_cursor(y + 1, x + 3);
-        try render.fmt("{s}", .{self.buffer[0..@min(width, self.cur)]});
+        try render.move_cursor(b.y + 1, b.x + 3);
+        try render.fmt("{s}", .{self.buffer[0..@min(b.width, self.cur)]});
+        try render.blanks(b.width -| self.cur -| 2);
         try render.flush();
     }
 
-    fn draw_box(self: *@This()) !void {
+    fn draw_box(self: *@This(), b: Bound) !void {
         var render = self.sys.render;
 
         const corners = [4][3]u8{
@@ -196,16 +193,10 @@ pub const FilterView = struct {
             .{ 0xe2, 0x94, 0x82 },
         };
 
-        const x: u16 = render.window.width / 4;
-        const y: u16 = render.window.height / 4;
-
-        const width = (render.window.width / 2) -| 2;
-        const height: u16 = (3 -| 2);
-
-        try render.move_cursor(y, x);
+        try render.move_cursor(b.y, b.x);
 
         try render.raw(&corners[0]);
-        for (0..width) |i| {
+        for (0..b.width) |i| {
             _ = i;
             try render.raw(&pipes[0]);
         }
@@ -213,18 +204,26 @@ pub const FilterView = struct {
         try render.raw(&corners[1]);
         try render.flush();
 
-        for (0..height) |h| {
-            try render.move_cursor(@intCast(y + h + 1), x);
+        log.debug("pipes", .{
+            .bound = b,
+        });
+
+        for (1..b.height) |h| {
+            log.debug("pipes", .{
+                .h = h,
+                .bound = b,
+            });
+            try render.move_cursor(@intCast(b.y + h), b.x);
             try render.raw(&pipes[1]);
-            try render.move_cursor(@intCast(y + h + 1), x + width + 1);
+            try render.move_cursor(@intCast(b.y + h), b.x + b.width + 1);
             try render.raw(&pipes[1]);
         }
 
         try render.flush();
 
-        try render.move_cursor(@intCast(y + height + 1), x);
+        try render.move_cursor(@intCast(b.y + b.height), b.x);
         try render.raw(&corners[2]);
-        for (0..width) |i| {
+        for (0..b.width) |i| {
             _ = i;
             try render.raw(&pipes[0]);
         }
@@ -234,7 +233,40 @@ pub const FilterView = struct {
     }
 
     pub fn handle(self: *@This(), input: inputs.InsertInput) !void {
-        _ = self;
-        _ = input;
+        log.debug("filter view inputs", .{ .input = input });
+        switch (input) {
+            .Raw => |r| {
+                self.buffer[self.cur] = r;
+                self.cur += 1;
+            },
+
+            .BS => {
+                self.cur -|= 1;
+            },
+
+            else => {},
+        }
+    }
+
+    const Bound = struct {
+        x: u16,
+        y: u16,
+        width: u16,
+        height: u16,
+    };
+
+    fn calc_bound(self: *@This()) Bound {
+        const x: u16 = self.sys.render.window.width / 4;
+        const y: u16 = self.sys.render.window.height / 4;
+
+        const width = (self.sys.render.window.width / 2);
+        const height: u16 = @intCast(std.mem.count(u8, self.buffer[0..self.cur], "\n") + 2);
+
+        return Bound{
+            .x = x,
+            .y = y,
+            .width = width,
+            .height = height,
+        };
     }
 };

@@ -68,12 +68,16 @@ pub const ListInput = enum {
 pub const InsertInput = union(enum) {
     Escape: void,
     Cancel: void,
+    Submit: void,
+    BS: void,
     Raw: u8,
 
     fn process(buf: []const u8) ?@This() {
         if (buf.len == 1) {
             switch (buf[0]) {
+                '\n' => return .Submit,
                 '\x1b' => return .Escape,
+                127, 8 => return .BS,
                 3 => return .Cancel,
 
                 else => {

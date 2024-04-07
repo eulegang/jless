@@ -106,6 +106,10 @@ pub const Render = struct {
         self.cur += cmd.len;
     }
 
+    pub fn blanks(self: *Render, amount: usize) Err!void {
+        try self.raw(SPACE[0..amount]);
+    }
+
     pub fn push_line(self: *Render, content: []const u8) Err!void {
         const len = @min(content.len, self.window.width);
         const pad = self.window.width - len;

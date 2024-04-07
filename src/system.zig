@@ -124,11 +124,21 @@ pub const System = struct {
                     return false; // not really but for now
                 }
 
-                if (insert == .Cancel) {
-                    self.inputs.mode = .list;
-                    try self.list_view.paint();
-                } else {
-                    try self.filter_view.handle(insert);
+                switch (insert) {
+                    .Cancel => {
+                        self.inputs.mode = .list;
+                        try self.list_view.paint();
+                    },
+
+                    .Submit => {
+                        self.inputs.mode = .list;
+                        try self.list_view.paint();
+                    },
+
+                    else => {
+                        try self.filter_view.handle(insert);
+                        try self.filter_view.paint();
+                    },
                 }
             },
         }
