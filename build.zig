@@ -14,13 +14,12 @@ const Linkage = enum {
                 compile.linkSystemLibrary("jq");
                 compile.linkSystemLibrary("tree-sitter");
                 compile.linkSystemLibrary("tree-sitter-json");
+                compile.linkSystemLibrary("tree-sitter-jq");
 
                 compile.linkLibC();
             },
 
             .Static => {
-                //@panic("static is currently not supported")
-
                 compile.addIncludePath(.{ .path = "/usr/local/include/" });
                 compile.addRPath(.{ .path = "/usr/local/lib" });
 
@@ -28,8 +27,7 @@ const Linkage = enum {
                 compile.addObjectFile(.{ .path = "/usr/local/lib/libonig.a" });
                 compile.addObjectFile(.{ .path = "/usr/local/lib/libtree-sitter.a" });
                 compile.addObjectFile(.{ .path = "/usr/local/lib/libtree-sitter-json.a" });
-
-                //compile.linkLibrary("jq");
+                compile.addObjectFile(.{ .path = "/usr/local/lib/libtree-sitter-jq.a" });
 
                 compile.linkLibC();
             },

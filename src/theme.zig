@@ -14,6 +14,20 @@ pub const Syntax = struct {
         bool: Color,
         null: Color,
     },
+
+    jq: struct {
+        string: Color,
+        key: Color,
+        number: Color,
+        boolean: Color,
+        null: Color,
+        keyword: Color,
+        operator: Color,
+        builtin: Color,
+        punct: Color,
+        delim: Color,
+        comment: Color,
+    },
 };
 
 pub const Theme = struct {
@@ -21,6 +35,11 @@ pub const Theme = struct {
     default: ColorPair,
 
     syntax: Syntax,
+
+    filter: struct {
+        success: Color,
+        fail: Color,
+    },
 
     pub const DEFAULT = Theme{
         .default = .{
@@ -31,7 +50,10 @@ pub const Theme = struct {
             .bg = .{ .true = .{ .red = 0x33, .green = 0xAA, .blue = 0x33 } },
             .fg = .{ .true = .{ .red = 0x24, .green = 0x28, .blue = 0x3b } },
         },
-
+        .filter = .{
+            .success = .{ .true = .{ .red = 0x24, .green = 0xe8, .blue = 0x3b } },
+            .fail = .{ .true = .{ .red = 0xe4, .green = 0x28, .blue = 0x3b } },
+        },
         .syntax = .{
             .json = .{
                 .string = .{ .true = .{ .red = 0x24, .green = 0xd6, .blue = 0xd6 } },
@@ -40,6 +62,20 @@ pub const Theme = struct {
                 .punct = .{ .true = .{ .red = 0xd6, .green = 0xd6, .blue = 0xA2 } },
                 .bool = .{ .true = .{ .red = 0x73, .green = 0xd6, .blue = 0xd6 } },
                 .null = .{ .true = .{ .red = 0x73, .green = 0xd6, .blue = 0xd6 } },
+            },
+
+            .jq = .{
+                .string = .{ .true = .{ .red = 0x24, .green = 0xd6, .blue = 0xd6 } },
+                .keyword = .{ .true = .{ .red = 0x73, .green = 0xd6, .blue = 0xA2 } },
+                .number = .{ .true = .{ .red = 0x73, .green = 0x7A, .blue = 0xd6 } },
+                .punct = .{ .true = .{ .red = 0xd6, .green = 0xd6, .blue = 0xA2 } },
+                .boolean = .{ .true = .{ .red = 0x73, .green = 0xd6, .blue = 0xd6 } },
+                .null = .{ .true = .{ .red = 0x73, .green = 0xd6, .blue = 0xd6 } },
+                .operator = .{ .true = .{ .red = 0x73, .green = 0xd6, .blue = 0xd6 } },
+                .key = .{ .true = .{ .red = 0x73, .green = 0xd6, .blue = 0xA2 } },
+                .builtin = .{ .true = .{ .red = 0x73, .green = 0xd6, .blue = 0xA2 } },
+                .delim = .{ .true = .{ .red = 0x73, .green = 0xd6, .blue = 0xA2 } },
+                .comment = .{ .true = .{ .red = 0x34, .green = 0x38, .blue = 0x3b } },
             },
         },
     };

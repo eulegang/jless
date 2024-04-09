@@ -8,7 +8,7 @@ const inputs = @import("inputs.zig");
 
 const index = @import("index.zig");
 
-const log = std.log.scoped(.system);
+const log = std.log.scoped(.view);
 
 pub const ListView = struct {
     sys: *system.System,
@@ -145,26 +145,116 @@ pub const ListView = struct {
 pub const FilterView = struct {
     sys: *system.System,
     filter: bool,
+    highlighter: Highlighter,
 
     buffer: []u8,
     cur: usize,
 
     pub fn init(sys: *system.System) !FilterView {
         const buffer = try sys.alloc.alloc(u8, 4096);
+        var highlighter = try Highlighter.init(.JQ, sys.alloc);
+
+        try highlighter.add_lane("(comment) @comment", sys.theme.syntax.jq.comment);
+        try highlighter.add_lane("(number) @num", sys.theme.syntax.jq.number);
+        try highlighter.add_lane("(string) @str", sys.theme.syntax.jq.string);
+        try highlighter.add_lane("(format) @str", sys.theme.syntax.jq.string);
+        try highlighter.add_lane("[\"true\" \"false\"] @bool", sys.theme.syntax.jq.boolean);
+        try highlighter.add_lane("(index (identifier) @property)", sys.theme.syntax.jq.key);
+
+        try highlighter.add_lane("[\"[\" \"]\" \"{\" \"}\" \"(\" \")\" ] @punctuation.bracket", sys.theme.syntax.jq.punct);
+        try highlighter.add_lane("[ \";\" \",\" \":\" ] @punctuation.delimiter", sys.theme.syntax.jq.delim);
+
+        try highlighter.add_lane(
+            \\[
+            \\  "def"
+            \\  "as"
+            \\  "label"
+            \\  "module"
+            \\  "break"
+            \\  "if"
+            \\  "then"
+            \\  "elif"
+            \\  "else"
+            \\  "end"
+            \\  "try"
+            \\  "catch"
+            \\  "or"
+            \\  "and"
+            \\] @keyword
+        , sys.theme.syntax.jq.keyword);
+
+        try highlighter.add_lane(
+            \\[
+            \\  "."
+            \\  "=="
+            \\  "!="
+            \\  ">"
+            \\  ">="
+            \\  "<="
+            \\  "<"
+            \\  "="
+            \\  "+"
+            \\  "-"
+            \\  "*"
+            \\  "/"
+            \\  "%"
+            \\  "+="
+            \\  "-="
+            \\  "*="
+            \\  "/="
+            \\  "%="
+            \\  "//="
+            \\  "|"
+            \\  "?"
+            \\  "//"
+            \\  "?//"
+            \\ (recurse) ; ".."
+            \\] @op
+        , sys.theme.syntax.jq.operator);
+
+        try highlighter.add_lane(
+            \\((funcname) @function.builtin
+            \\  (#any-of? @function.builtin
+            \\    "IN" "INDEX" "JOIN" "acos" "acosh" "add" "all" "any" "arrays" "ascii_downcase" "ascii_upcase"
+            \\    "asin" "asinh" "atan" "atan2" "atanh" "booleans" "bsearch" "builtins" "capture" "cbrt" "ceil"
+            \\    "combinations" "contains" "copysign" "cos" "cosh" "debug" "del" "delpaths" "drem" "empty"
+            \\    "endswith" "env" "erf" "erfc" "error" "exp" "exp10" "exp2" "explode" "expm1" "fabs" "fdim"
+            \\    "finites" "first" "flatten" "floor" "fma" "fmax" "fmin" "fmod" "format" "frexp" "from_entries"
+            \\    "fromdate" "fromdateiso8601" "fromjson" "fromstream" "gamma" "get_jq_origin" "get_prog_origin"
+            \\    "get_search_list" "getpath" "gmtime" "group_by" "gsub" "halt" "halt_error" "has" "hypot"
+            \\    "implode" "in" "index" "indices" "infinite" "input" "input_filename" "input_line_number"
+            \\    "inputs" "inside" "isempty" "isfinite" "isinfinite" "isnan" "isnormal" "iterables" "j0" "j1"
+            \\    "jn" "join" "keys" "keys_unsorted" "last" "ldexp" "leaf_paths" "length" "lgamma" "lgamma_r"
+            \\    "limit" "localtime" "log" "log10" "log1p" "log2" "logb" "ltrimstr" "map" "map_values" "match"
+            \\    "max" "max_by" "min" "min_by" "mktime" "modf" "modulemeta" "nan" "nearbyint" "nextafter"
+            \\    "nexttoward" "normals" "not" "now" "nth" "nulls" "numbers" "objects" "path" "paths" "pow"
+            \\    "pow10" "range" "recurse" "recurse_down" "remainder" "repeat" "reverse" "rindex" "rint" "round"
+            \\    "rtrimstr" "scalars" "scalars_or_empty" "scalb" "scalbln" "scan" "select" "setpath"
+            \\    "significand" "sin" "sinh" "sort" "sort_by" "split" "splits" "sqrt" "startswith" "stderr"
+            \\    "strflocaltime" "strftime" "strings" "strptime" "sub" "tan" "tanh" "test" "tgamma" "to_entries"
+            \\    "todate" "todateiso8601" "tojson" "tonumber" "tostream" "tostring" "transpose" "trunc"
+            \\    "truncate_stream" "type" "unique" "unique_by" "until" "utf8bytelength" "values" "walk" "while"
+            \\    "with_entries" "y0" "y1" "yn"))
+        , sys.theme.syntax.jq.builtin);
+
         return FilterView{
             .sys = sys,
             .filter = true,
+            .highlighter = highlighter,
             .buffer = buffer,
             .cur = 0,
         };
     }
 
     pub fn deinit(self: @This()) void {
+        self.highlighter.deinit();
         self.sys.alloc.free(self.buffer);
     }
 
     pub fn paint(self: *@This()) !void {
         const bound = self.calc_bound();
+        log.debug("highlighting", .{ .buffer = self.buffer[0..self.cur] });
+        try self.highlighter.load(self.buffer[0..self.cur]);
         try self.draw_box(bound);
         try self.draw_content(bound);
     }
@@ -173,13 +263,26 @@ pub const FilterView = struct {
         var render = self.sys.render;
 
         try render.move_cursor(b.y + 1, b.x + 3);
-        try render.fmt("{s}", .{self.buffer[0..@min(b.width, self.cur)]});
+        try render.render(self.highlighter);
+        //try render.fmt("{s}", .{self.buffer[0..@min(b.width, self.cur)]});
         try render.blanks(b.width -| self.cur -| 2);
         try render.flush();
     }
 
     fn draw_box(self: *@This(), b: Bound) !void {
         var render = self.sys.render;
+        const theme = self.sys.theme;
+
+        if (self.highlighter.tree) |tree| {
+            log.debug("root range", .{ .root = tree.root().range() });
+            if (tree.root().has_error()) {
+                try render.render(theme.filter.fail);
+            } else {
+                try render.render(theme.filter.success);
+            }
+        } else {
+            log.debug("no tree", .{});
+        }
 
         const corners = [4][3]u8{
             .{ 0xe2, 0x95, 0xad },
@@ -204,15 +307,7 @@ pub const FilterView = struct {
         try render.raw(&corners[1]);
         try render.flush();
 
-        log.debug("pipes", .{
-            .bound = b,
-        });
-
         for (1..b.height) |h| {
-            log.debug("pipes", .{
-                .h = h,
-                .bound = b,
-            });
             try render.move_cursor(@intCast(b.y + h), b.x);
             try render.raw(&pipes[1]);
             try render.move_cursor(@intCast(b.y + h), b.x + b.width + 1);
@@ -233,7 +328,6 @@ pub const FilterView = struct {
     }
 
     pub fn handle(self: *@This(), input: inputs.InsertInput) !void {
-        log.debug("filter view inputs", .{ .input = input });
         switch (input) {
             .Raw => |r| {
                 self.buffer[self.cur] = r;

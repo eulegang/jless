@@ -42,7 +42,7 @@ pub const System = struct {
         self.store = try index.Store(0x1000).init(file, alloc);
         self.render = try Render.init(1);
 
-        self.highlighter = try Highlighter.init(alloc);
+        self.highlighter = try Highlighter.init(.JSON, alloc);
         self.theme = theme.Theme.DEFAULT;
         self.filter = null;
         self.projection = null;

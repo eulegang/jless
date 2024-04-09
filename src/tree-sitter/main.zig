@@ -4,6 +4,19 @@ const c = @cImport({
 });
 
 pub extern "c" fn tree_sitter_json() ?*c.TSLanguage;
+pub extern "c" fn tree_sitter_jq() ?*c.TSLanguage;
+
+pub const Lang = enum {
+    JSON,
+    JQ,
+
+    fn lang(self: @This()) ?*c.TSLanguage {
+        return switch (self) {
+            .JSON => tree_sitter_json(),
+            .JQ => tree_sitter_jq(),
+        };
+    }
+};
 
 pub const Error = error{
     InvalidParser,
@@ -30,6 +43,10 @@ pub const Node = struct {
             .end = end,
         };
     }
+
+    pub fn has_error(self: Node) bool {
+        return c.ts_node_has_error(self.node);
+    }
 };
 
 pub const Tree = struct {
@@ -47,10 +64,12 @@ pub const Tree = struct {
 pub const TS = struct {
     parser: *c.TSParser,
 
-    pub fn json() Error!TS {
+    pub fn init(lang: Lang) Error!TS {
         const parser = c.ts_parser_new() orelse return Error.InvalidParser;
 
-        if (!c.ts_parser_set_language(parser, tree_sitter_json())) {
+        const l = lang.lang();
+
+        if (!c.ts_parser_set_language(parser, l)) {
             return Error.InvalidLang;
         }
 
@@ -61,8 +80,13 @@ pub const TS = struct {
         c.ts_parser_delete(self.parser);
     }
 
-    pub fn parse(self: TS, buf: []const u8) Error!Tree {
-        const tree = c.ts_parser_parse_string(self.parser, null, buf.ptr, @intCast(buf.len)) orelse return Error.Parse;
+    pub fn parse(self: TS, buf: []const u8, old: ?Tree) Error!Tree {
+        var old_tree: ?*c.TSTree = null;
+        if (old) |o| {
+            old_tree = o.tree;
+        }
+
+        const tree = c.ts_parser_parse_string(self.parser, old_tree, buf.ptr, @intCast(buf.len)) orelse return Error.Parse;
 
         return Tree{ .tree = tree };
     }
@@ -79,10 +103,10 @@ const QueryError = error{
 pub const Query = struct {
     query: *c.TSQuery,
 
-    pub fn json(parse: []const u8) QueryError!Query {
+    pub fn init(lang: Lang, parse: []const u8) QueryError!Query {
         var err: u32 = 0;
         var off: u32 = 0;
-        const query = c.ts_query_new(tree_sitter_json(), parse.ptr, @intCast(parse.len), &off, &err) orelse return QueryError.QueryAlloc;
+        const query = c.ts_query_new(lang.lang(), parse.ptr, @intCast(parse.len), &off, &err) orelse return QueryError.QueryAlloc;
 
         switch (err) {
             0 => {},

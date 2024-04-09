@@ -2,16 +2,16 @@ const std = @import("std");
 const treesitter = @import("tree-sitter");
 
 test "tree-sitter" {
-    const ts = try treesitter.TS.json();
+    const ts = try treesitter.TS.init(.JSON);
     defer ts.deinit();
 
     const doc = "{\"nil\": null,\"number\":42,\"T\":true,\"F\":false,\"arr\":[true,false],\"str\":\"hello, world\",\"obj\":{\"n\":null}}";
 
-    const tree = try ts.parse(doc);
+    const tree = try ts.parse(doc, null);
     defer tree.deinit();
 
     {
-        const q = try treesitter.Query.json("(pair key: (string) @capt)");
+        const q = try treesitter.Query.init(.JSON, "(pair key: (string) @capt)");
         defer q.deinit();
 
         const cursor = try treesitter.QueryCursor.init(q, tree.root());
@@ -45,7 +45,7 @@ test "tree-sitter" {
     }
 
     {
-        const q = try treesitter.Query.json("[(true) (false) (null)] @capt");
+        const q = try treesitter.Query.init(.JSON, "[(true) (false) (null)] @capt");
         defer q.deinit();
 
         const cursor = try treesitter.QueryCursor.init(q, tree.root());

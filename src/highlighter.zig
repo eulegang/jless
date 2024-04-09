@@ -32,13 +32,14 @@ pub const Highlighter = struct {
     states: std.ArrayList(State),
 
     color: theme.Color,
+    lang: ts.Lang,
     parser: ts.TS,
     tree: ?ts.Tree,
     line: []const u8,
     cur: usize,
 
-    pub fn init(alloc: std.mem.Allocator) !@This() {
-        const parser = try ts.TS.json();
+    pub fn init(lang: ts.Lang, alloc: std.mem.Allocator) !@This() {
+        const parser = try ts.TS.init(lang);
 
         const lanes = std.ArrayList(Lane).init(alloc);
         const states = std.ArrayList(State).init(alloc);
@@ -49,6 +50,7 @@ pub const Highlighter = struct {
             .color = .{ .basic = .Default },
 
             .parser = parser,
+            .lang = lang,
             .tree = null,
 
             .line = "",
@@ -68,10 +70,16 @@ pub const Highlighter = struct {
         }
 
         self.states.deinit();
+
+        if (self.tree) |tree| {
+            tree.deinit();
+        }
+
+        self.parser.deinit();
     }
 
     pub fn add_lane(self: *@This(), query: []const u8, color: theme.Color) !void {
-        const q = try ts.Query.json(query);
+        const q = try ts.Query.init(self.lang, query);
 
         try self.lanes.append(Lane{
             .query = q,
@@ -89,7 +97,11 @@ pub const Highlighter = struct {
 
         self.states.clearRetainingCapacity();
 
-        const tree = try self.parser.parse(line);
+        const tree = try self.parser.parse(line, null);
+        if (self.tree) |t| {
+            t.deinit();
+        }
+
         self.tree = tree;
 
         for (self.lanes.items) |lane| {
@@ -135,15 +147,13 @@ pub const Highlighter = struct {
             try r.fmt("{s}", .{self.line[cur..hare]});
             cur = hare;
         }
-
-        //try r.fmt("{s}", .{self.line});
     }
 };
 
 test "punct" {
     var r = render.test_instance;
 
-    var highlighter = try Highlighter.init(std.testing.allocator);
+    var highlighter = try Highlighter.init(.JSON, std.testing.allocator);
     defer highlighter.deinit();
 
     try highlighter.add_lane("[\"{\" \":\" \",\" \"[\" \"]\" \"}\"] @punct", .{ .basic = .Yellow });
@@ -161,11 +171,10 @@ test "punct" {
 test "keywords" {
     var r = render.test_instance;
 
-    var highlighter = try Highlighter.init(std.testing.allocator);
+    var highlighter = try Highlighter.init(.JSON, std.testing.allocator);
     defer highlighter.deinit();
 
     try highlighter.add_lane("[(true) (false) (null)] @kw", .{ .basic = .Magenta });
-    //try highlighter.add_lane("[\"{\" \":\" \",\" \"[\" \"]\" \"}\"] @punct", .{ .basic = .Yellow });
 
     var line: []const u8 = "true";
     var expected: []const u8 = "\x1b[35mtrue";
@@ -196,7 +205,7 @@ test "keywords" {
 test "array/keywords" {
     var r = render.test_instance;
 
-    var highlighter = try Highlighter.init(std.testing.allocator);
+    var highlighter = try Highlighter.init(.JSON, std.testing.allocator);
     defer highlighter.deinit();
 
     try highlighter.add_lane("[(true) (false) (null)] @kw", .{ .basic = .Magenta });
@@ -213,7 +222,7 @@ test "array/keywords" {
 test "object/keys prio" {
     var r = render.test_instance;
 
-    var highlighter = try Highlighter.init(std.testing.allocator);
+    var highlighter = try Highlighter.init(.JSON, std.testing.allocator);
     defer highlighter.deinit();
 
     try highlighter.add_lane("[(true) (false) (null)] @kw", .{ .basic = .Magenta });
