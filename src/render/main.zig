@@ -7,6 +7,8 @@ const BUF_LEN = 1024;
 
 const SPACE: [BUF_LEN]u8 = .{' '} ** BUF_LEN;
 
+const log = std.log.scoped(.render);
+
 const Err = std.mem.Allocator.Error || std.os.WriteError || error{WindowFetch};
 
 pub const test_instance = switch (@import("builtin").is_test) {

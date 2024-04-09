@@ -43,39 +43,40 @@ pub const Theme = struct {
 
     pub const DEFAULT = Theme{
         .default = .{
-            .fg = .{ .true = .{ .red = 0x73, .green = 0x7A, .blue = 0xA2 } },
-            .bg = .{ .true = .{ .red = 0x24, .green = 0x28, .blue = 0x3b } },
+            .fg = Color.parse("#737AA2").?,
+            .bg = Color.parse("#24283B").?,
         },
         .selected = .{
-            .bg = .{ .true = .{ .red = 0x33, .green = 0xAA, .blue = 0x33 } },
-            .fg = .{ .true = .{ .red = 0x24, .green = 0x28, .blue = 0x3b } },
+            .fg = Color.parse("#24283b").?,
+            .bg = Color.parse("#33AA33").?,
         },
         .filter = .{
-            .success = .{ .true = .{ .red = 0x24, .green = 0xe8, .blue = 0x3b } },
-            .fail = .{ .true = .{ .red = 0xe4, .green = 0x28, .blue = 0x3b } },
+            .success = Color.parse("#24E83B").?,
+            .fail = Color.parse("#E4283B").?,
         },
         .syntax = .{
             .json = .{
-                .string = .{ .true = .{ .red = 0x24, .green = 0xd6, .blue = 0xd6 } },
-                .key = .{ .true = .{ .red = 0x73, .green = 0xd6, .blue = 0xA2 } },
-                .number = .{ .true = .{ .red = 0x73, .green = 0x7A, .blue = 0xd6 } },
-                .punct = .{ .true = .{ .red = 0xd6, .green = 0xd6, .blue = 0xA2 } },
-                .bool = .{ .true = .{ .red = 0x73, .green = 0xd6, .blue = 0xd6 } },
-                .null = .{ .true = .{ .red = 0x73, .green = 0xd6, .blue = 0xd6 } },
+                .string = Color.parse("#24D6D6").?,
+                .key = Color.parse("#73D6A2").?,
+                .number = Color.parse("#737AD6").?,
+                .punct = Color.parse("#D6D6A2").?,
+                .bool = Color.parse("#73D6D6").?,
+                .null = Color.parse("#73D6D6").?,
             },
 
             .jq = .{
-                .string = .{ .true = .{ .red = 0x24, .green = 0xd6, .blue = 0xd6 } },
-                .keyword = .{ .true = .{ .red = 0x73, .green = 0xd6, .blue = 0xA2 } },
-                .number = .{ .true = .{ .red = 0x73, .green = 0x7A, .blue = 0xd6 } },
-                .punct = .{ .true = .{ .red = 0xd6, .green = 0xd6, .blue = 0xA2 } },
-                .boolean = .{ .true = .{ .red = 0x73, .green = 0xd6, .blue = 0xd6 } },
-                .null = .{ .true = .{ .red = 0x73, .green = 0xd6, .blue = 0xd6 } },
-                .operator = .{ .true = .{ .red = 0x73, .green = 0xd6, .blue = 0xd6 } },
-                .key = .{ .true = .{ .red = 0x73, .green = 0xd6, .blue = 0xA2 } },
-                .builtin = .{ .true = .{ .red = 0x73, .green = 0xd6, .blue = 0xA2 } },
-                .delim = .{ .true = .{ .red = 0x73, .green = 0xd6, .blue = 0xA2 } },
-                .comment = .{ .true = .{ .red = 0x34, .green = 0x38, .blue = 0x3b } },
+                .string = Color.parse("#24D6D6").?,
+                .key = Color.parse("#73D6A2").?,
+                .number = Color.parse("#737AD6").?,
+                .punct = Color.parse("#D6D6A2").?,
+                .boolean = Color.parse("#73D6D6").?,
+                .null = Color.parse("#73D6D6").?,
+
+                .keyword = Color.parse("#73D6A2").?,
+                .operator = Color.parse("#73D6D6").?,
+                .builtin = Color.parse("#73D6A2").?,
+                .delim = Color.parse("#73D6A2").?,
+                .comment = Color.parse("#34383B").?,
             },
         },
     };
@@ -93,8 +94,6 @@ pub const Theme = struct {
             if (std.mem.indexOfScalar(u8, part, '=')) |i| {
                 const name = std.mem.trim(u8, part[0..i], " \t");
                 const value = std.mem.trim(u8, part[i + 1 ..], " \t");
-
-                //log.debug("found theme", .{ .value = value, .name = name });
 
                 const color = Color.parse(value) orelse return null;
 
@@ -309,6 +308,17 @@ test "set true colors" {
     });
 
     try std.testing.expectEqualSlices(u8, "\x1b[38;2;255;187;17m\x1b[48;2;0;170;255m", r.buffer[0..r.cur]);
+}
+
+test "default selected" {
+    var r = render.test_instance;
+
+    try r.render(ColorPair{
+        .fg = Color.parse("#24283b").?,
+        .bg = Color.parse("#33AA33").?,
+    });
+
+    try std.testing.expectEqualSlices(u8, "\x1b[38;2;36;40;59m\x1b[48;2;51;170;51m", r.buffer[0..r.cur]);
 }
 
 test "parse color" {
