@@ -147,11 +147,7 @@ pub const FilterView = struct {
     filter: bool,
     highlighter: Highlighter,
 
-    buffer: []u8,
-    cur: usize,
-
     pub fn init(sys: *system.System) !FilterView {
-        const buffer = try sys.alloc.alloc(u8, 4096);
         var highlighter = try Highlighter.init(.JQ, sys.alloc);
 
         try highlighter.add_lane("(comment) @comment", sys.theme.syntax.jq.comment);
@@ -241,8 +237,6 @@ pub const FilterView = struct {
             .sys = sys,
             .filter = true,
             .highlighter = highlighter,
-            .buffer = buffer,
-            .cur = 0,
         };
     }
 
@@ -253,7 +247,6 @@ pub const FilterView = struct {
 
     pub fn paint(self: *@This()) !void {
         const bound = self.calc_bound();
-        //try self.highlighter.load(self.buffer[0..self.cur]);
         try self.draw_box(bound);
         try self.draw_content(bound);
     }
@@ -263,7 +256,7 @@ pub const FilterView = struct {
 
         try render.move_cursor(b.y + 1, b.x + 3);
         try render.render(self.highlighter);
-        try render.blanks(b.width -| self.cur -| 2);
+        try render.blanks(b.width -| self.highlighter.len -| 2);
         try render.flush();
     }
 
@@ -354,7 +347,7 @@ pub const FilterView = struct {
         const y: u16 = self.sys.render.window.height / 4;
 
         const width = (self.sys.render.window.width / 2);
-        const height: u16 = @intCast(std.mem.count(u8, self.buffer[0..self.cur], "\n") + 2);
+        const height: u16 = @intCast(std.mem.count(u8, self.highlighter.buf[0..self.highlighter.len], "\n") + 2);
 
         return Bound{
             .x = x,
