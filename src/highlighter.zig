@@ -80,6 +80,10 @@ pub const Highlighter = struct {
         self.alloc.free(self.buf);
     }
 
+    pub fn buffer(self: *const @This()) []const u8 {
+        return self.buf[0..self.len];
+    }
+
     pub fn add_lane(self: *@This(), query: []const u8, color: theme.Color) !void {
         const q = try ts.Query.init(self.lang, query);
 

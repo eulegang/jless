@@ -122,6 +122,28 @@ pub const System = struct {
 
                     .Submit => {
                         self.inputs.mode = .list;
+
+                        const buffer = self.filter_view.highlighter.buffer();
+
+                        if (JQ.init(buffer, self.alloc)) |jq| {
+                            if (self.filter_view.filter) {
+                                if (self.filter) |f| {
+                                    f.deinit();
+                                }
+
+                                self.filter = jq;
+                                try self.store.build_filter(self.filter);
+                            } else {
+                                if (self.projection) |p| {
+                                    p.deinit();
+                                }
+
+                                self.projection = jq;
+                            }
+                        } else |err| {
+                            log.err("jq error", .{ .expr = buffer, .err = err });
+                        }
+
                         try self.list_view.paint();
                     },
 
