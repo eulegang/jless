@@ -253,8 +253,7 @@ pub const FilterView = struct {
 
     pub fn paint(self: *@This()) !void {
         const bound = self.calc_bound();
-        log.debug("highlighting", .{ .buffer = self.buffer[0..self.cur] });
-        try self.highlighter.load(self.buffer[0..self.cur]);
+        //try self.highlighter.load(self.buffer[0..self.cur]);
         try self.draw_box(bound);
         try self.draw_content(bound);
     }
@@ -264,7 +263,6 @@ pub const FilterView = struct {
 
         try render.move_cursor(b.y + 1, b.x + 3);
         try render.render(self.highlighter);
-        //try render.fmt("{s}", .{self.buffer[0..@min(b.width, self.cur)]});
         try render.blanks(b.width -| self.cur -| 2);
         try render.flush();
     }
@@ -330,12 +328,14 @@ pub const FilterView = struct {
     pub fn handle(self: *@This(), input: inputs.InsertInput) !void {
         switch (input) {
             .Raw => |r| {
-                self.buffer[self.cur] = r;
-                self.cur += 1;
+                try self.highlighter.push(r);
+                //self.buffer[self.cur] = r;
+                //self.cur += 1;
             },
 
             .BS => {
-                self.cur -|= 1;
+                try self.highlighter.pop();
+                //self.cur -|= 1;
             },
 
             else => {},

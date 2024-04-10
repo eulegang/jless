@@ -93,21 +93,15 @@ pub const System = struct {
 
                     if (self.filter_view.filter) {
                         if (self.filter) |f| {
-                            const len = f.prog.len;
-                            @memcpy(self.filter_view.buffer[0..len], f.prog);
-                            self.filter_view.cur = len;
+                            try self.filter_view.highlighter.load(f.prog);
                         } else {
-                            self.filter_view.buffer[0] = '.';
-                            self.filter_view.cur = 1;
+                            try self.filter_view.highlighter.load(".");
                         }
                     } else {
                         if (self.projection) |p| {
-                            const len = p.prog.len;
-                            @memcpy(self.filter_view.buffer[0..len], p.prog);
-                            self.filter_view.cur = len;
+                            try self.filter_view.highlighter.load(p.prog);
                         } else {
-                            self.filter_view.buffer[0] = '.';
-                            self.filter_view.cur = 1;
+                            try self.filter_view.highlighter.load(".");
                         }
                     }
 
@@ -120,12 +114,8 @@ pub const System = struct {
             },
 
             .insert => |insert| {
-                if (insert == .Escape) {
-                    return false; // not really but for now
-                }
-
                 switch (insert) {
-                    .Cancel => {
+                    .Cancel, .Escape => {
                         self.inputs.mode = .list;
                         try self.list_view.paint();
                     },

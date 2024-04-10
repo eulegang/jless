@@ -6,6 +6,8 @@ const render = @import("render");
 
 const Render = render.Render;
 
+const log = std.log.scoped(.highlighter);
+
 const Lane = struct {
     query: ts.Query,
     color: theme.Color,
@@ -31,30 +33,29 @@ pub const Highlighter = struct {
     lanes: std.ArrayList(Lane),
     states: std.ArrayList(State),
 
-    color: theme.Color,
     lang: ts.Lang,
     parser: ts.TS,
     tree: ?ts.Tree,
-    line: []const u8,
-    cur: usize,
+    buf: []u8,
+    len: usize,
 
     pub fn init(lang: ts.Lang, alloc: std.mem.Allocator) !@This() {
         const parser = try ts.TS.init(lang);
 
         const lanes = std.ArrayList(Lane).init(alloc);
         const states = std.ArrayList(State).init(alloc);
+        const buf = try alloc.alloc(u8, 4096);
 
         return Highlighter{
             .lanes = lanes,
             .states = states,
-            .color = .{ .basic = .Default },
 
             .parser = parser,
             .lang = lang,
             .tree = null,
 
-            .line = "",
-            .cur = 0,
+            .buf = buf,
+            .len = 0,
         };
     }
 
@@ -76,6 +77,7 @@ pub const Highlighter = struct {
         }
 
         self.parser.deinit();
+        self.alloc.free(self.buf);
     }
 
     pub fn add_lane(self: *@This(), query: []const u8, color: theme.Color) !void {
@@ -88,22 +90,33 @@ pub const Highlighter = struct {
     }
 
     pub fn load(self: *@This(), line: []const u8) !void {
-        self.line = line;
-        self.cur = 0;
+        log.debug("loading", .{ .line = line });
+        std.mem.copyForwards(u8, self.buf[0..line.len], line);
+        self.len = line.len;
 
-        for (self.states.items) |state| {
-            state.cursor.deinit();
-        }
-
-        self.states.clearRetainingCapacity();
-
-        const tree = try self.parser.parse(line, null);
+        const tree = try self.parser.parse(self.buf[0..self.len], null);
         if (self.tree) |t| {
             t.deinit();
         }
 
         self.tree = tree;
 
+        try self.reload_states(tree);
+    }
+
+    fn reload_cached(self: *@This()) !void {
+        const tree = try self.parser.parse(self.buf[0..self.len], self.tree);
+
+        self.tree = tree;
+        try self.reload_states(tree);
+    }
+
+    fn reload_states(self: *@This(), tree: ts.Tree) !void {
+        for (self.states.items) |state| {
+            state.cursor.deinit();
+        }
+
+        self.states.clearRetainingCapacity();
         for (self.lanes.items) |lane| {
             var cursor = try ts.QueryCursor.init(lane.query, tree.root());
             var next: ?usize = null;
@@ -119,36 +132,83 @@ pub const Highlighter = struct {
         }
     }
 
-    pub fn render(self: @This(), r: *Render) !void {
-        var cur: usize = 0;
-        var color: theme.Color = .{ .basic = .Default };
+    pub fn push(self: *@This(), ch: u8) !void {
+        const old_len = self.len;
+        self.buf[self.len] = ch;
+        self.len += 1;
 
-        while (cur < self.line.len) {
-            var hare = self.line.len;
-            for (self.lanes.items, self.states.items) |lane, *state| {
-                if (state.next) |n| {
-                    if (n < cur) {
-                        state.forward(cur);
-                    }
-                }
+        log.debug("push", .{ .buffer = self.buf[0..self.len], .len = self.len });
 
-                if (state.next) |n| {
-                    if (n == cur) {
-                        color = lane.color;
-                    }
+        if (self.tree) |t| {
+            t.edit(ts.InputEdit{
+                .start_byte = 0,
+                .old_end_byte = @intCast(old_len),
+                .new_end_byte = @intCast(self.len),
+                .start_point = .{ .row = 0, .column = 0 },
+                .old_end_point = .{ .row = 0, .column = @intCast(old_len) },
+                .new_end_point = .{ .row = 0, .column = @intCast(self.len) },
+            });
 
-                    if (n > cur) {
-                        hare = @min(hare, n);
-                    }
+            try self.reload_cached();
+        }
+    }
+
+    pub fn pop(self: *@This()) !void {
+        if (self.len > 0) {
+            const old_len = self.len;
+            self.len -= 1;
+
+            log.debug("push", .{ .buffer = self.buf[0..self.len] });
+
+            if (self.tree) |t| {
+                t.edit(ts.InputEdit{
+                    .start_byte = 0,
+                    .old_end_byte = @intCast(old_len),
+                    .new_end_byte = @intCast(self.len),
+                    .start_point = .{ .row = 0, .column = 0 },
+                    .old_end_point = .{ .row = 0, .column = @intCast(old_len) },
+                    .new_end_point = .{ .row = 0, .column = @intCast(self.len) },
+                });
+
+                try self.reload_cached();
+            }
+        }
+    }
+
+    pub fn render(self: *const @This(), r: *Render) !void {
+        try run_highlight(self.buf[0..self.len], r, self.lanes.items, self.states.items);
+    }
+};
+
+fn run_highlight(buf: []const u8, r: *Render, lanes: []Lane, states: []State) !void {
+    var cur: usize = 0;
+    var color: theme.Color = .{ .basic = .Default };
+
+    while (cur < buf.len) {
+        var hare = buf.len;
+        for (lanes, states) |lane, *state| {
+            if (state.next) |n| {
+                if (n < cur) {
+                    state.forward(cur);
                 }
             }
 
-            try r.render(color);
-            try r.fmt("{s}", .{self.line[cur..hare]});
-            cur = hare;
+            if (state.next) |n| {
+                if (n == cur) {
+                    color = lane.color;
+                }
+
+                if (n > cur) {
+                    hare = @min(hare, n);
+                }
+            }
         }
+
+        try r.render(color);
+        try r.fmt("{s}", .{buf[cur..hare]});
+        cur = hare;
     }
-};
+}
 
 test "punct" {
     var r = render.test_instance;

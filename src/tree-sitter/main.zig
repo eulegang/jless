@@ -3,6 +3,8 @@ const c = @cImport({
     @cInclude("tree_sitter/api.h");
 });
 
+const log = std.log.scoped(.treesitter);
+
 pub extern "c" fn tree_sitter_json() ?*c.TSLanguage;
 pub extern "c" fn tree_sitter_jq() ?*c.TSLanguage;
 
@@ -31,6 +33,8 @@ pub const Range = struct {
     end: usize,
 };
 
+pub const InputEdit = c.TSInputEdit;
+
 pub const Node = struct {
     node: c.TSNode,
 
@@ -54,6 +58,10 @@ pub const Tree = struct {
 
     pub fn root(self: Tree) Node {
         return Node{ .node = c.ts_tree_root_node(self.tree) };
+    }
+
+    pub fn edit(self: Tree, input_edit: InputEdit) void {
+        c.ts_tree_edit(self.tree, &input_edit);
     }
 
     pub fn deinit(self: Tree) void {
@@ -81,6 +89,7 @@ pub const TS = struct {
     }
 
     pub fn parse(self: TS, buf: []const u8, old: ?Tree) Error!Tree {
+        log.debug("parsing buffer", .{ .buffer = buf });
         var old_tree: ?*c.TSTree = null;
         if (old) |o| {
             old_tree = o.tree;
