@@ -37,12 +37,111 @@ const Linkage = enum {
     }
 };
 
+pub fn build_tree_sitter_vendered(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) *std.Build.Step.Compile {
+    const lib = b.addStaticLibrary(.{
+        .name = "tree-sitter",
+        .pic = true,
+        .optimize = optimize,
+        .target = target,
+        .link_libc = true,
+    });
+
+    lib.addIncludePath(.{ .path = "vender/tree-sitter/lib/src" });
+    lib.addIncludePath(.{ .path = "vender/tree-sitter/lib/src/wasm" });
+    lib.addIncludePath(.{ .path = "vender/tree-sitter/lib/include" });
+
+    lib.addCSourceFiles(.{
+        .root = .{ .path = "vender/tree-sitter/" },
+        .files = &.{
+            "lib/src/alloc.c",
+            "lib/src/get_changed_ranges.c",
+            "lib/src/language.c",
+            "lib/src/lexer.c",
+            "lib/src/node.c",
+            "lib/src/parser.c",
+            "lib/src/query.c",
+            "lib/src/stack.c",
+            "lib/src/subtree.c",
+            "lib/src/tree.c",
+            "lib/src/tree_cursor.c",
+            "lib/src/wasm_store.c",
+        },
+        .flags = &.{
+            "-Wall",
+            "-Wextra",
+            "-Wshadow",
+            "-pedantic",
+            "-fPIC",
+            "-fvisibility=hidden",
+            "-std=c11",
+        },
+    });
+
+    return lib;
+}
+
+pub fn build_tree_sitter_json_vendered(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) *std.Build.Step.Compile {
+    const lib = b.addStaticLibrary(.{
+        .name = "tree-sitter-json",
+        .pic = true,
+        .optimize = optimize,
+        .target = target,
+        .link_libc = true,
+    });
+
+    lib.addIncludePath(.{ .path = "vender/tree-sitter-json/src/" });
+
+    lib.addCSourceFiles(.{
+        .root = .{ .path = "vender/tree-sitter-json/" },
+        .files = &.{
+            "src/parser.c",
+        },
+        .flags = &.{
+            "-Wall",
+            "-Wextra",
+            "-std=gnu99",
+        },
+    });
+
+    return lib;
+}
+
+pub fn build_tree_sitter_jq_vendered(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) *std.Build.Step.Compile {
+    const lib = b.addStaticLibrary(.{
+        .name = "tree-sitter-jq",
+        .pic = true,
+        .optimize = optimize,
+        .target = target,
+        .link_libc = true,
+    });
+
+    lib.addIncludePath(.{ .path = "vender/tree-sitter-jq/src/" });
+
+    lib.addCSourceFiles(.{
+        .root = .{ .path = "vender/tree-sitter-jq/" },
+        .files = &.{
+            "src/parser.c",
+        },
+        .flags = &.{
+            "-Wall",
+            "-Wextra",
+            "-std=gnu99",
+        },
+    });
+
+    return lib;
+}
+
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
     const static = b.option(bool, "static", "build a statically linked executable") orelse false;
     //const vendored = b.option(bool, "vendored", "build a statically linked with default dependency sources ") orelse false;
+
+    const tree_sitter_vendered = build_tree_sitter_vendered(b, target, optimize);
+    const tree_sitter_json_vendered = build_tree_sitter_json_vendered(b, target, optimize);
+    const tree_sitter_jq_vendered = build_tree_sitter_jq_vendered(b, target, optimize);
 
     var linkage = Linkage.Dynamic;
 
@@ -97,6 +196,9 @@ pub fn build(b: *std.Build) void {
     // standard location when the user invokes the "install" step (the default
     // step when running `zig build`).
     b.installArtifact(exe);
+    b.installArtifact(tree_sitter_vendered);
+    b.installArtifact(tree_sitter_json_vendered);
+    b.installArtifact(tree_sitter_jq_vendered);
 
     // This *creates* a Run step in the build graph, to be executed when another
     // step is evaluated that depends on it. The next line below will establish
