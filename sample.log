@@ -4,3 +4,4 @@
 {"timestamp":"2024-03-14T00:55:51.506824Z","level":"DEBUG","fields":{"message":"often"},"target":"sample_builder","filename":"src/main.rs"}
 {"timestamp":"2024-03-14T00:55:51.506836Z","level":"TRACE","fields":{"message":"never"},"target":"sample_builder","filename":"src/main.rs"}
 {"timestamp":"2024-03-14T00:55:51.506847Z","level":"ERROR","fields":{"message":"is to human"},"target":"sample_builder","filename":"src/main.rs"}
+{"type": "variable", "null": null, "num": 42, "xyz": [true, false, null]}
