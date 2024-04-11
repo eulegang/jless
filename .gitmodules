@@ -7,3 +7,6 @@
 [submodule "vender/tree-sitter-jq"]
 	path = vender/tree-sitter-jq
 	url = https://github.com/flurie/tree-sitter-jq
+[submodule "vender/jq"]
+	path = vender/jq
+	url = https://github.com/jqlang/jq
