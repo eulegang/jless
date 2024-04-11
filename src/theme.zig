@@ -48,11 +48,11 @@ pub const Theme = struct {
         },
         .selected = .{
             .fg = Color.parse("#24283b").?,
-            .bg = Color.parse("#33AA33").?,
+            .bg = Color.parse("#444455").?,
         },
         .filter = .{
-            .success = Color.parse("#24E83B").?,
-            .fail = Color.parse("#E4283B").?,
+            .success = Color.parse("#64E864").?,
+            .fail = Color.parse("#e86464").?,
         },
         .syntax = .{
             .json = .{
@@ -61,7 +61,7 @@ pub const Theme = struct {
                 .number = Color.parse("#737AD6").?,
                 .punct = Color.parse("#D6D6A2").?,
                 .bool = Color.parse("#73D6D6").?,
-                .null = Color.parse("#73D6D6").?,
+                .null = Color.parse("#d37AD6").?,
             },
 
             .jq = .{
@@ -70,10 +70,10 @@ pub const Theme = struct {
                 .number = Color.parse("#737AD6").?,
                 .punct = Color.parse("#D6D6A2").?,
                 .boolean = Color.parse("#73D6D6").?,
-                .null = Color.parse("#73D6D6").?,
+                .null = Color.parse("#d37AD6").?,
 
                 .keyword = Color.parse("#73D6A2").?,
-                .operator = Color.parse("#73D6D6").?,
+                .operator = Color.parse("#f6c662").?,
                 .builtin = Color.parse("#73D6A2").?,
                 .delim = Color.parse("#73D6A2").?,
                 .comment = Color.parse("#34383B").?,
