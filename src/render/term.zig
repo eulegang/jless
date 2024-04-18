@@ -7,7 +7,13 @@ pub const Term = struct {
 
     pub fn init() Term {
         var term: std.os.termios = undefined;
-        _ = std.os.linux.tcgetattr(1, &term);
+
+        switch (tag) {
+            .linux => _ = std.os.linux.tcgetattr(1, &term),
+            .macos => _ = std.os.darwin.tcgetattr(1, &term),
+
+            else => @compileError("not supported"),
+        }
 
         return Term{ .term = term };
     }
