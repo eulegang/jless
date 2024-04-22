@@ -45,18 +45,21 @@ var projection_opt = cli.Option{
     .value_ref = cli.mkRef(&args.projection),
 };
 
-var app = &cli.App{ .command = cli.Command{
-    .name = "jless",
-    .options = &.{ &projection_opt, &filter_opt },
-    .target = cli.CommandTarget{
-        .action = cli.CommandAction{
-            .exec = run,
-            .positional_args = cli.PositionalArgs{
-                .args = &.{&file_arg},
+var app = &cli.App{
+    .version = "0.0.3",
+    .command = cli.Command{
+        .name = "jless",
+        .options = &.{ &projection_opt, &filter_opt },
+        .target = cli.CommandTarget{
+            .action = cli.CommandAction{
+                .exec = run,
+                .positional_args = cli.PositionalArgs{
+                    .args = &.{&file_arg},
+                },
             },
         },
     },
-} };
+};
 
 pub fn main() !void {
     return cli.run(app, allocator);
