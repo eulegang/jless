@@ -180,39 +180,41 @@ pub const Highlighter = struct {
     }
 
     pub fn render(self: *const @This(), r: *Render) !void {
-        try run_highlight(self.buf[0..self.len], r, self.lanes.items, self.states.items);
+        var cur: usize = 0;
+        var color: theme.Color = .{ .basic = .Default };
+        var buf = self.buf[0..self.len];
+        var written: usize = 0;
+
+        while (cur < buf.len) {
+            log.debug("rendering", .{ .written = written, .width = r.window.width });
+            if (written > r.window.width) break;
+            var hare = buf.len;
+            for (self.lanes.items, self.states.items) |lane, *state| {
+                if (state.next) |n| {
+                    if (n < cur) {
+                        state.forward(cur);
+                    }
+                }
+
+                if (state.next) |n| {
+                    if (n == cur) {
+                        color = lane.color;
+                    }
+
+                    if (n > cur) {
+                        hare = @min(hare, n);
+                    }
+                }
+            }
+
+            written += hare - cur;
+
+            try r.render(color);
+            try r.fmt("{s}", .{buf[cur..hare]});
+            cur = hare;
+        }
     }
 };
-
-fn run_highlight(buf: []const u8, r: *Render, lanes: []Lane, states: []State) !void {
-    var cur: usize = 0;
-    var color: theme.Color = .{ .basic = .Default };
-
-    while (cur < buf.len) {
-        var hare = buf.len;
-        for (lanes, states) |lane, *state| {
-            if (state.next) |n| {
-                if (n < cur) {
-                    state.forward(cur);
-                }
-            }
-
-            if (state.next) |n| {
-                if (n == cur) {
-                    color = lane.color;
-                }
-
-                if (n > cur) {
-                    hare = @min(hare, n);
-                }
-            }
-        }
-
-        try r.render(color);
-        try r.fmt("{s}", .{buf[cur..hare]});
-        cur = hare;
-    }
-}
 
 test "punct" {
     var r = render.test_instance;
