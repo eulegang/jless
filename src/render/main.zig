@@ -3,7 +3,7 @@ const ops = @import("ops.zig");
 
 pub usingnamespace @import("term.zig");
 
-const BUF_LEN = 1024;
+const BUF_LEN = 4096;
 
 const SPACE: [BUF_LEN]u8 = .{' '} ** BUF_LEN;
 
